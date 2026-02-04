@@ -50,6 +50,7 @@ data_clean_df.to_csv(data_clean, index=False)
 
 # %%
 # Data preparation and processing
+data_clean_df['map_mm'] = None
 for index, row in data_clean_df.iterrows():
     case_id = row['case']
     print(f"Processing case: {case_id}")
@@ -57,8 +58,18 @@ for index, row in data_clean_df.iterrows():
     lon = row['longitude']
     location = row['lonlat']
 
-    farm_climate = get_farm_climate(lat=lat, lon=lon, out_dir=location, location=location, start_year=2000, end_year=2020)
+    farm_climate = get_farm_climate(lat=lat, lon=lon, out_dir=loc_data_dir, location=location, start_year=2000, end_year=2020)
+
+    # Get the monthly means for the climate data: 'total_evaporation_mm', 'potential_evaporation_mm', 'total_precipitation_mm', 'temperature_2m_c'
+    farm_climate_mean = farm_climate.groupby('month').mean().reset_index()
+    # drop the year column
+    farm_climate_mean = farm_climate_mean.drop(columns=['year'])
+    # save to csv
+    farm_climate_mean.to_csv(loc_data_dir / location / "climate_data" / f"climate_monthly_mean.csv", index=False)
 
     map_mm = get_map(farm_climate)
+    data_clean_df.at[index, 'map_mm'] = map_mm
     
     farm_soil = get_farm_soil(lat=lat, lon=lon, input_dir=loc_data_dir, location=location)
+
+# %%
