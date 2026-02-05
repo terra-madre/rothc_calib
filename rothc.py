@@ -306,93 +306,60 @@ def rothc_transient(year, clay, depth, monthly, initial_pools, tillage_modifier=
     return results
 
 
-def prepare_rothc_carbon(soil_inputs, period, scenario, initial_pools=None, output_dir=None, farm_id=None):
+def prepare_rothc_pools(soil_data, type, initial_pools=None):
     """Prepare carbon inputs and initial pool values for RothC model.
     
     Args:
-        soil_inputs (pd.DataFrame): DataFrame with carbon input data per plot
-        period (str): "spinup" or a year (e.g., "2020")
-        scenario (str): "baseline" or "project"
+        soil_data (pd.DataFrame): DataFrame with carbon input data per plot
+        type (str): "spinup" or "transient" - determines how pools are initialized
         initial_pools (pd.DataFrame, optional): DataFrame with initial pool values (columns: plot_name, DPM, RPM, BIO, HUM, IOM, SOC)
-        output_dir (str, optional): Path to output directory containing soil carbon pool data (used if initial_pools not provided)
     
     Returns:
         pd.DataFrame: Carbon inputs and pool values ready for RothC
-    
-    Raises:
-        ValueError: If period is not "spinup" and neither initial_pools nor valid file path is provided
+
     """
-    import pandas as pd
-    from pathlib import Path
 
-    ### --- Prepare carbon input data --- ###
-
-    if scenario == "baseline" and period == "spinup":
-        c_inputs = 'c_tot_t_ha_bl'
-        dr_ratio = 'c_dr_ratio_bl'
-    elif scenario == "baseline" and period != "spinup":
-        c_inputs = 'c_tot_t_ha_blsel'
-        dr_ratio = 'c_dr_ratio_blsel'
-    elif scenario == "project":
-        c_inputs = 'c_tot_t_ha_proj'
-        dr_ratio = 'c_dr_ratio_proj'
-    else:
-        raise ValueError(f"Invalid options: '{scenario} {period}'. Scenario must be 'baseline' or 'project' and period must be 'spinup' or a year.")
-    
-    rothc_carbon = soil_inputs[['plot_name', c_inputs, dr_ratio]].copy()
-    rothc_carbon = rothc_carbon.rename(columns={c_inputs: 't_C_Inp', dr_ratio: 't_DPM_RPM'})
+    rothc_pools = soil_data.copy()
+    rothc_pools.rename(columns={'rothc_soc30_t_ha': 'SOC'}, inplace=True)
+    clay_pct = rothc_pools['rothc_clay_pct'].values
+    rothc_pools.drop(columns=['rothc_clay_pct'], inplace=True)
 
     pool_cols = ['DPM', 'RPM', 'BIO', 'HUM', 'IOM', 'SOC']
 
-    # If period is "spinup", pools remain at zero (will be calculated)
-    if period == "spinup":
+    # If period is "spinup", pools start at zero (will be calculated)
+    if type == "spinup":
         for col in pool_cols:
-            rothc_carbon[col] = 0.0
-        return rothc_carbon
-    
-    ### --- Load pools from argument or file --- ###
-    
-    required_cols = ['plot_name'] + pool_cols
-
-    previous_year = int(period) - 1
+            rothc_pools[col] = 0.0
+        return rothc_pools
+        
+    required_cols = ['case'] + pool_cols
     
     # Use initial_pools if provided
     if initial_pools is not None:
         init_pools = initial_pools.copy()
-        init_pools = init_pools[init_pools['year'].astype(str) == str(previous_year)][required_cols]
-        rothc_carbon = rothc_carbon.merge(
-            init_pools,
-            on='plot_name',
-            how='left'
-        )
-    
-    # Else load from file
-    elif output_dir is not None and farm_id is not None:
-        soilc_ha_file = Path(output_dir) / farm_id / 'soil_carbon' / f'soilc_ha_{scenario}.csv'
-        soilc_ha_df = pd.read_csv(soilc_ha_file)
-        init_pools = soilc_ha_df[soilc_ha_df['year'].astype(str) == str(previous_year)]
-        rothc_carbon = rothc_carbon.merge(
+        rothc_pools = rothc_pools.merge(
             init_pools[required_cols],
-            on='plot_name',
+            on='case',
             how='left'
         )
-    
-    # Else raise error
+        return rothc_pools
     else:
-        raise ValueError(
-            f"Cannot prepare carbon pools for period '{period}'. "
-            "Either 'initial_pools' DataFrame or both 'output_dir' and 'farm_id' must be provided to load previous year pools."
-            )
+        # If no initial_pools provided, use soc to calculate pool sizes
+        # Pool distribution: Calculated using pedotransfer functions (Weihermüller et al., 2013):
+        # RPM = (0.1847 × SOC + 0.1555) × (clay + 1.2750)^(-0.1158)
+        # HUM = (0.7148 × SOC + 0.5069) × (clay + 0.3421)^(0.0184)
+        # BIO = (0.0140 × SOC + 0.0075) × (clay + 8.8473)^(0.0567)
+        # IOM = 0.049 × SOC^1.139
+        # DPM = 0 (at equilibrium)
+        rothc_pools['RPM'] = (0.1847 * rothc_pools['SOC'] + 0.1555) * (clay_pct + 1.2750)**(-0.1158)
+        rothc_pools['HUM'] = (0.7148 * rothc_pools['SOC'] + 0.5069) * (clay_pct + 0.3421)**(0.0184)
+        rothc_pools['BIO'] = (0.0140 * rothc_pools['SOC'] + 0.0075) * (clay_pct + 8.8473)**(0.0567)
+        rothc_pools['IOM'] = 0.049 * rothc_pools['SOC']**1.139
+        rothc_pools['DPM'] = 0.0
+        return rothc_pools
     
-    # If any value in rothc_carbon is missing or nan, raise error
-    missing_pools = rothc_carbon.isnull().any(axis=1)
-    if missing_pools.any():
-        missing_plots = rothc_carbon.loc[missing_pools, 'plot_name'].tolist()
-        raise ValueError(
-            f"Missing soil carbon values for plots: {', '.join(missing_plots)} "
-            f"in year {previous_year} for scenario '{scenario}'."
-        )
+
+            
     
-    return rothc_carbon
 
     

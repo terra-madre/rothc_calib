@@ -26,9 +26,9 @@ from io_utils import *
 # Configurations and paths
 
 average_climate = True  # Whether to average climate data into a single year for RothC inputs
-soil_depth = 30  # Soil depth in cm for soilgrids data
+soil_depth = 30  # Soil depth in cm
 
-input_dir = Path("../inputs")
+input_dir = Path("./inputs")
 data_raw = input_dir / "data_raw.csv"
 data_inputs = input_dir / "data_inputs.csv"
 loc_data_dir = input_dir / "loc_data"
@@ -44,24 +44,25 @@ data_inputs_df = pd.read_csv(data_inputs)
 # Data preparation and processing
 
 # %%
-# # Loop over each case in data_clean_df, get nut3, add to data_clean_df and save
-# data_clean_df['nuts3'] = ''
-# for index, row in data_clean_df.iterrows():
-#     case_id = row['case']
-#     print(f"Processing case: {case_id}")
-#     lat = row['latitude']
-#     lon = row['longitude']
-#     nuts3 = get_farm_nuts3(lat, lon, input_dir, nuts_version='2024') # nuts_version can be '2021' or '2024'
-#     data_clean_df.at[index, 'nuts3'] = nuts3
-# data_clean_df.to_csv(data_clean, index=False)
+# Loop over each case in data_clean_df, get nut3, add to data_clean_df and save
+data_clean_df['nuts3'] = ''
+for index, row in data_clean_df.iterrows():
+    case_id = row['case']
+    print(f"Processing case: {case_id}")
+    lat = row['latitude']
+    lon = row['longitude']
+    nuts3 = get_farm_nuts3(lat, lon, input_dir, nuts_version='2024') # nuts_version can be '2021' or '2024'
+    data_clean_df.at[index, 'nuts3'] = nuts3
+data_clean_df.to_csv(data_clean, index=False)
 
 # %%
 # Data preparation and processing
 data_clean_df['map_mm'] = None
 data_clean_df['grids_clay_pct'] = None
-data_clean_df['grids_soc_pct'] = None
+data_clean_df['bulk_density_g_cm3'] = None
+data_clean_df['grids_soc30_t_ha'] = None
 data_clean_df['rothc_clay_pct'] = None
-
+data_clean_df['rothc_soc30_t_ha'] = None
 for index, row in data_clean_df.iterrows():
     case_id = row['case']
     print(f"Processing case: {case_id}")
@@ -72,7 +73,7 @@ for index, row in data_clean_df.iterrows():
     # ------- Get and prepare location climate data ----------
     farm_climate = get_farm_climate(lat=lat, lon=lon, out_dir=loc_data_dir, location=location, start_year=2000, end_year=2020)
     annual_precip = farm_climate.groupby('year')['total_precipitation_mm'].sum().reset_index()
-    map_value = annual_precip['total_precipitation_mm'].mean()
+    map_value = round(annual_precip['total_precipitation_mm'].mean())
     data_clean_df.at[index, 'map_mm'] = map_value
 
     if average_climate:
@@ -100,10 +101,15 @@ for index, row in data_clean_df.iterrows():
     data_clean_df.at[index, 'rothc_clay_pct'] = row['clay_pct'] if pd.notnull(row['clay_pct']) else grid_clay
     # data_clean_df.at[index, 'rothc_soc_pct'] = row['soc_pct'] if pd.notnull(row['soc_pct']) else grid_soc # Implement eventually when soc_pct is added to data_clean.csv
     data_clean_df.at[index, 'grids_clay_pct'] = grid_clay
-    data_clean_df.at[index, 'grids_soc_t_ha'] = grid_soc
+    data_clean_df.at[index, 'grids_soc30_t_ha'] = grid_soc
+    data_clean_df.at[index, 'bulk_density_g_cm3'] = grid_bulkdensity
+
+# Save data to csv
+data_clean_df.to_csv(data_clean, index=False)
 
 # %%
-# Determine initial soil carbon content. Possible sources in order of preference: from 
+# ------ Determine initial soil carbon content.
+
 # Read the file IPCC_Climate_Zones_ts_3.25.tif and find the climate zone for each case, then add to data_clean_df
 climate_zones_file = input_dir / "IPCC_Climate_Zones_ts_3.25.tif"
 
@@ -122,14 +128,19 @@ for index, row in data_clean_df.iterrows():
 # Read in Medinet soc data and merge with data_clean_df by ipcc_climate_zone and land_use
 medinet_soc_df = pd.read_csv(input_dir / "medinet_soil_carbon.csv")
 data_clean_df = pd.merge(data_clean_df, medinet_soc_df, on=['ipcc_climate_zone', 'land_use'], how='left')
-# Set data_clean_df['rothc_soc_t_ha'] to data_clean_df['medinet_soc_t_ha'] if not null, else to data_clean_df['grids_soc_t_ha']
-data_clean_df['rothc_soc30_t_ha'] = None
-data_clean_df['rothc_soc_t_ha'] = data_clean_df['medinet_soc_t_ha'].fillna(data_clean_df['grids_soc_t_ha'])
 
-# Save
-data_clean_df.to_csv(data_clean, index=False)
-
-# %%
-# Normalize the deltaC to 30cm soil depth
+# Normalize the soc and delta_soc to 30cm soil depth
 # Replace this with a more correct method eventually that uses the soil depth distribution of SOC (e.g. from soilgrids)
+data_clean_df['soc30_t_ha'] = data_clean_df['soc_t_ha'] / data_clean_df['sampling_depth_cm'] * soil_depth
 data_clean_df['delta_soc30_tC_ha_y'] = data_clean_df['delta_soc_t_ha_y'] / data_clean_df['sampling_depth_cm'] * soil_depth
+# round to 2 decimal places
+data_clean_df['soc30_t_ha'] = data_clean_df['soc30_t_ha'].round(2)
+data_clean_df['delta_soc30_tC_ha_y'] = data_clean_df['delta_soc30_tC_ha_y'].round(2)
+
+# Set data_clean_df['rothc_soc30_t_ha'] to soc30_t_ha, else to medinet_soc30_t_ha or grids_soc30_t_ha
+# Can revert the medinet / soilgrids order to test effect on model error
+# data_clean_df['rothc_soc_t_ha'] = data_clean_df['soc30_t_ha'].fillna(data_clean_df['medinet_soc30_t_ha']).fillna(data_clean_df['grids_soc30_t_ha'])
+data_clean_df['rothc_soc30_t_ha'] = data_clean_df['soc30_t_ha'].fillna(data_clean_df['grids_soc30_t_ha']).fillna(data_clean_df['medinet_soc30_t_ha'])
+
+# Save data to csv
+data_clean_df.to_csv(data_clean, index=False)

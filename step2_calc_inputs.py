@@ -7,24 +7,23 @@ from git_code.io_utils import *
 # Configurations and paths
 soil_depth = 30  # Soil depth in cm
 cases_df = pd.read_csv("./inputs/data_clean.csv")
+output_dir = Path("./outputs/")
+output_dir.mkdir(parents=True, exist_ok=True)
+
 location = cases_df.iloc[0]['lonlat']
 case_id = cases_df.iloc[0]['case']
 loc_data_dir = Path("./inputs/loc_data/") / location
-output_dir = Path("./outputs/") / case_id
-output_dir.mkdir(parents=True, exist_ok=True)
-
-# Read soil girds and climate data
-soil_grids_file = loc_data_dir / 'soil_data' / 'soil_data_soilgrids.csv'
-farm_soil_grids = pd.read_csv(soil_grids_file)
 climate_file = loc_data_dir / 'climate_data' / 'climate_monthly_mean.csv'
 farm_climate = pd.read_csv(climate_file)
 
+cases_soil_df = cases_df[['case', 'rothc_clay_pct', 'rothc_soc30_t_ha']].copy()
 
-rothc_carbon_baseline = prepare_rothc_carbon(marged_yearsel, year, "baseline", initial_pools=soilc_baseline,
-                                                output_dir=output_dir, farm_id=farm_id)
-
+rothc_pools = prepare_rothc_pools(cases_soil_df, "transient")
 
 cases_inputs_df = pd.read_csv("./inputs/data_inputs.csv")
+
+# Here we calculate the soil C inputs for each case in cases_inputs_df
+
 
 pools_baseline = []
 pools_project = []
@@ -32,32 +31,15 @@ pools_project = []
 # Loop through each plot and run RothC for baseline and project scenarios
 for _, case in cases_inputs_df.iterrows():
 
-    # Clay percentage is the same for both scenarios
-    clay = case['clay_perc']
-    # Get tillage decomposition modifiers for this plot
-    tillage_data = processed_data['tillage']
-    plot_tillage = tillage_data[tillage_data['plot_name'] == plot_name].iloc[0]
-    tillage_modifier_bl = plot_tillage['decomp_modifier_bl']
-    tillage_modifier_pr = plot_tillage['decomp_modifier_pr']
-
-    # Prepare common monthly data
+    clay = case['rothc_clay_pct']
+    
+    # Prepare monthly data
     monthly = rothc_climate.copy()
     monthly['t_FYM_Inp'] = 0.0
     monthly['t_PC'] = 1
-    
-    # --- Run RothC for baseline scenario --- #
-    # Get baseline carbon inputs for this plot and add to monthly data, then run RothC
-    plot_carbon_baseline = rothc_carbon_baseline[rothc_carbon_baseline['plot_name'] == plot_name].iloc[0]
-    c_inp_total = plot_carbon_baseline['t_C_Inp']
-    dpm_rpm = plot_carbon_baseline['t_DPM_RPM']
-    monthly['t_C_Inp'] = c_inp_total / 12  # Split evenly over 12 months
-    monthly['t_DPM_RPM'] = dpm_rpm
-    rothc_results = rothc_transient(year, clay, soil_depth, monthly, plot_carbon_baseline, tillage_modifier=tillage_modifier_bl)
-    rothc_results['plot_name'] = plot_name
-    pools_baseline.append(rothc_results)
 
-    # --- Run RothC for project scenario --- #
-    # Get project carbon inputs for this plot and add to monthly data, then run RothC
+    # --- Run RothC --- #
+    # Get carbon inputs for this case and add to monthly data, then run RothC
     plot_carbon_project = rothc_carbon_project[rothc_carbon_project['plot_name'] == plot_name].iloc[0]
     c_inp_total = plot_carbon_project['t_C_Inp']
     dpm_rpm = plot_carbon_project['t_DPM_RPM']
