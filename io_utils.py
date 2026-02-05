@@ -467,6 +467,67 @@ def get_farm_nuts3(lat, lon, input_dir, nuts_geojson_path=None, nuts_version='20
     return nuts3_code
 
 
+def get_ipcc_climate_zone_from_tif(lat, lon, climate_zones_file):
+    """Read IPCC climate zone from a GeoTIFF raster file.
+    
+    Args:
+        lat (float): Latitude of the location (WGS84)
+        lon (float): Longitude of the location (WGS84)
+        climate_zones_file (str or Path): Path to the IPCC climate zones TIF file
+    
+    Returns:
+        str: IPCC climate zone label (e.g., 'Tropical Moist', 'Warm Temperate Dry')
+             Returns 'Unknown' if coordinates are outside raster bounds or value is invalid
+    
+    Notes:
+        Expected raster values and their mappings:
+        1: Tropical Montane, 2: Tropical Wet, 3: Tropical Moist, 4: Tropical Dry
+        5: Warm Temperate Moist, 6: Warm Temperate Dry
+        7: Cool Temperate Moist, 8: Cool Temperate Dry
+        9: Boreal Moist, 10: Boreal Dry
+        11: Polar Moist, 12: Polar Dry
+    """
+    import rasterio
+    from pathlib import Path
+    
+    # Mapping from raster values to IPCC climate zone labels
+    ipcc_zone_mapping = {
+        1: 'Tropical Montane',
+        2: 'Tropical Wet',
+        3: 'Tropical Moist',
+        4: 'Tropical Dry',
+        5: 'Warm Temperate Moist',
+        6: 'Warm Temperate Dry',
+        7: 'Cool Temperate Moist',
+        8: 'Cool Temperate Dry',
+        9: 'Boreal Moist',
+        10: 'Boreal Dry',
+        11: 'Polar Moist',
+        12: 'Polar Dry'
+    }
+    
+    try:
+        with rasterio.open(climate_zones_file) as src:
+            # Get row, col from coordinates
+            row_idx, col_idx = src.index(lon, lat)
+            
+            # Read the value at this location
+            zone_value = src.read(1, window=((row_idx, row_idx+1), (col_idx, col_idx+1)))[0, 0]
+            
+            # Map value to label
+            if zone_value in ipcc_zone_mapping:
+                return ipcc_zone_mapping[zone_value]
+            else:
+                print(f"Warning: Unknown zone value {zone_value} at ({lat}, {lon})")
+                return 'Unknown'
+    except (IndexError, ValueError) as e:
+        print(f"Warning: Could not read climate zone for coordinates ({lat}, {lon}): {e}")
+        return 'Unknown'
+    except Exception as e:
+        print(f"Error reading climate zone file: {e}")
+        return 'Unknown'
+
+
 def get_farm_climate(lat, lon, out_dir, location, start_year=2000, end_year=None):
     """Retrieve ERA5-Land climate data for the farm location from Copernicus CDS.
     
@@ -826,9 +887,60 @@ def get_farm_soil(lat, lon, input_dir, location):
     
     return df
 
-def get_map(farm_climate):
-    """Get the average mean annual precipitation (MAP) from the farm climate data."""
-    # Calculate mean annual precipitation (MAP) in mm/year
-    annual_precip = farm_climate.groupby('year')['total_precipitation_mm'].sum().reset_index()
-    map_value = annual_precip['total_precipitation_mm'].mean()
-    return map_value
+def get_soilgrids_values(farm_soil, soil_depth = 30):
+    """Prepare RothC model inputs for equilibrium run based on farm soil and climate data.
+    Args:
+        farm_soil (pd.DataFrame): DataFrame with soil properties for the farm location.
+        farm_info (pd.Series): Series with farm-level information.
+        plots_meta (pd.DataFrame): DataFrame with plot-level information (e.g., measured clay and SOC).
+        soil_depth (int): Depth of soil to consider for RothC.
+    Returns:
+        climate (pd.DataFrame): DataFrame with monthly climate data, averaged for spinup run, else for the period
+        plots_rothc (pd.DataFrame): Dataframe with soil clay, soc and carbon inputs for each plot
+    """
+
+    import pandas as pd
+
+    ### --- Prepare soil properties --- ###
+
+    # Get aggregated values of soil properties
+    # Select soil layers up to soil_depth
+    farm_soil = farm_soil.copy()
+    
+    if soil_depth <= 5:
+        farm_soil = farm_soil[farm_soil['depth_cm'] == '0-5cm']
+    elif soil_depth <= 15:
+        farm_soil = farm_soil[farm_soil['depth_cm'].isin(['5-15cm', '0-5cm'])]
+    elif soil_depth <= 30:
+        farm_soil = farm_soil[farm_soil['depth_cm'].isin(['15-30cm', '5-15cm', '0-5cm'])]
+    elif soil_depth <= 60:
+        farm_soil = farm_soil[farm_soil['depth_cm'].isin(['30-60cm', '15-30cm', '5-15cm', '0-5cm'])]
+    elif soil_depth <= 100:
+        farm_soil = farm_soil[farm_soil['depth_cm'].isin(['60-100cm', '15-30cm', '5-15cm', '0-5cm'])]
+    
+    # Add depth interval width for weighted averaging
+    depth_widths = {
+        '0-5cm': 5,
+        '5-15cm': 10,
+        '15-30cm': 15,
+        '30-60cm': 30,
+        '60-100cm': 40,
+        '100-200cm': 100
+    }
+    farm_soil['depth_width'] = farm_soil['depth_cm'].map(depth_widths)
+    
+    # Get the weighted average clay percentage across soil depths 
+    clay_perc = (farm_soil['clay_fraction_perc'] * farm_soil['depth_width']).sum() / farm_soil['depth_width'].sum()
+    # Get the weighted average bulk density across soil depths
+    bulk_density = (farm_soil['bulk_density_g_cm3'] * farm_soil['depth_width']).sum() / farm_soil['depth_width'].sum()
+    # Calculate total soil organic carbon in t/ha
+    # SOC (g/kg) * depth (cm) * bulk_density (g/cm³=t/m3) * 0.1 = t/ha
+    # Explanation: t/t (soc g/kg/ 1000) * m (depth cm / 100) * (area) 10000 m2 * t/m3 (bulk_density) → × 0.1 converts to t/ha
+    soc_total = (farm_soil['soil_organic_carbon_g_kg'] / 1000 * farm_soil['depth_width'] / 100 * 10000 * bulk_density).sum()
+
+    # Round values
+    clay_perc = round(clay_perc, 1)
+    bulk_density = round(bulk_density, 3)
+    soc_total = round(soc_total, 2)
+    
+    return clay_perc, soc_total, bulk_density
