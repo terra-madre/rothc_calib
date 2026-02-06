@@ -61,7 +61,6 @@ else:
 carbon_inputs_df = step2.calc_c_inputs(
     cases_treatments_df=cases_treatments_df,
     cases_info_df=cases_info_df,
-    fixed_data_dir=fixed_data_dir,
     st_yields_all=st_yields_all,
     ps_herbaceous=ps_herbaceous,
     ps_management=ps_management,

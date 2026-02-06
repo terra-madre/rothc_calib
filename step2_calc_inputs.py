@@ -60,7 +60,6 @@ def get_rothc_pools(cases_info_df, type, initial_pools=None):
 def calc_c_herb(
     cases_treatments_df,
     cases_info_df,
-    fixed_data_dir,
     st_yields_all,
     ps_herbaceous,
     ps_management,
@@ -71,7 +70,6 @@ def calc_c_herb(
     Args:
         cases_treatments_df (pd.DataFrame): DataFrame with treatment info per case
         cases_info_df (pd.DataFrame): DataFrame with case information (nuts3, map_mm)
-        fixed_data_dir (Path): Directory containing fixed input data files
         st_yields_all (pd.DataFrame): DataFrame with selected yields by nuts3
         ps_herbaceous (pd.DataFrame): DataFrame with herbaceous plant parameters
         ps_management (pd.DataFrame): DataFrame with management parameters
@@ -336,7 +334,6 @@ def calc_c_amend(
 def calc_c_inputs(
     cases_treatments_df,
     cases_info_df,
-    fixed_data_dir,
     st_yields_all,
     ps_herbaceous,
     ps_management,
@@ -354,7 +351,6 @@ def calc_c_inputs(
     Args:
         cases_treatments_df (pd.DataFrame): DataFrame with treatment info per case
         cases_info_df (pd.DataFrame): DataFrame with case information (nuts3, map_mm)
-        fixed_data_dir (Path): Directory containing fixed input data files
         st_yields_all (pd.DataFrame): DataFrame with selected yields by nuts3
         ps_herbaceous (pd.DataFrame): DataFrame with herbaceous plant parameters
         ps_management (pd.DataFrame): DataFrame with management parameters
@@ -370,7 +366,6 @@ def calc_c_inputs(
     c_herb = calc_c_herb(
         cases_treatments_df=cases_treatments_df,
         cases_info_df=cases_info_df,
-        fixed_data_dir=fixed_data_dir,
         st_yields_all=st_yields_all,
         ps_herbaceous=ps_herbaceous,
         ps_management=ps_management,
