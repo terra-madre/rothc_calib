@@ -1,11 +1,7 @@
 # Import necessary libraries
 import pandas as pd
-from git_code.io_utils import *
+from io_utils import *
 
-
-
-
-cases_inputs_df = pd.read_csv("./inputs/data_inputs.csv")
 
 
 def get_rothc_pools(cases_info_df, type, initial_pools=None):

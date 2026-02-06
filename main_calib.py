@@ -7,7 +7,8 @@ import step1_preprocess as step1
 import step2_calc_inputs as step2
 
 # configuration and paths
-input_dir = Path("./inputs")
+repo_root = Path(__file__).resolve().parents[1]
+input_dir = repo_root / "inputs"
 cases_info_raw_file = input_dir / "raw" / "cases_info.csv"
 cases_treatments_raw_file = input_dir / "raw" / "cases_treatments.csv"
 loc_data_dir = input_dir / "loc_data"

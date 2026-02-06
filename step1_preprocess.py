@@ -46,7 +46,7 @@ def fetch_soil_data(data_clean_df, loc_data_dir, soil_depth=30, out_csv_path=Non
         lon = row['longitude']
         location = row['lonlat']
         # ------- Get and prepare location soil data --------
-        farm_soil_grids = get_farm_soil(lat=lat, lon=lon, input_dir=loc_data_dir, location=location)
+        farm_soil_grids = get_soilgrids_data(lat=lat, lon=lon, input_dir=loc_data_dir, location=location)
         grid_clay, grid_soc, grid_bulkdensity = get_soilgrids_values(farm_soil_grids, soil_depth=soil_depth)
         # Set value of row['rothc_clay_pct'] to row['clay_pct'] if not null, else to grid_clay
         data_clean_df.at[index, 'rothc_clay_pct'] = row['clay_pct'] if pd.notnull(row['clay_pct']) else grid_clay
@@ -472,5 +472,322 @@ def get_farm_climate(lat, lon, out_dir, location, start_year=2000, end_year=None
     
     print(f"✓ Downloaded and saved climate data to {climate_csv_file}")
 
-        
     return df
+
+
+
+def get_ipcc_climate_zone_from_tif(lat, lon, climate_zones_file):
+    """Read IPCC climate zone from a GeoTIFF raster file.
+    
+    Args:
+        lat (float): Latitude of the location (WGS84)
+        lon (float): Longitude of the location (WGS84)
+        climate_zones_file (str or Path): Path to the IPCC climate zones TIF file
+    
+    Returns:
+        str: IPCC climate zone label (e.g., 'Tropical Moist', 'Warm Temperate Dry')
+             Returns 'Unknown' if coordinates are outside raster bounds or value is invalid
+    
+    Notes:
+        Expected raster values and their mappings:
+        1: Tropical Montane, 2: Tropical Wet, 3: Tropical Moist, 4: Tropical Dry
+        5: Warm Temperate Moist, 6: Warm Temperate Dry
+        7: Cool Temperate Moist, 8: Cool Temperate Dry
+        9: Boreal Moist, 10: Boreal Dry
+        11: Polar Moist, 12: Polar Dry
+    """
+    import rasterio
+    from pathlib import Path
+    
+    # Mapping from raster values to IPCC climate zone labels
+    ipcc_zone_mapping = {
+        1: 'Tropical Montane',
+        2: 'Tropical Wet',
+        3: 'Tropical Moist',
+        4: 'Tropical Dry',
+        5: 'Warm Temperate Moist',
+        6: 'Warm Temperate Dry',
+        7: 'Cool Temperate Moist',
+        8: 'Cool Temperate Dry',
+        9: 'Boreal Moist',
+        10: 'Boreal Dry',
+        11: 'Polar Moist',
+        12: 'Polar Dry'
+    }
+    
+    try:
+        with rasterio.open(climate_zones_file) as src:
+            # Get row, col from coordinates
+            row_idx, col_idx = src.index(lon, lat)
+            
+            # Read the value at this location
+            zone_value = src.read(1, window=((row_idx, row_idx+1), (col_idx, col_idx+1)))[0, 0]
+            
+            # Map value to label
+            if zone_value in ipcc_zone_mapping:
+                return ipcc_zone_mapping[zone_value]
+            else:
+                print(f"Warning: Unknown zone value {zone_value} at ({lat}, {lon})")
+                return 'Unknown'
+    except (IndexError, ValueError) as e:
+        print(f"Warning: Could not read climate zone for coordinates ({lat}, {lon}): {e}")
+        return 'Unknown'
+    except Exception as e:
+        print(f"Error reading climate zone file: {e}")
+        return 'Unknown'
+
+
+def get_soilgrids_data(lat, lon, input_dir, location):
+    """Retrieve soil properties data for the farm location from SoilGrids WCS API.
+    
+    Downloads soil properties data using Web Coverage Service (WCS) if not already cached.
+    Variables retrieved (mean values for standard depths):
+    - Soil organic carbon content (soc): g/kg (converted from cg/kg)
+    - Bulk density (bdod): g/cm³ (converted from cg/cm³)
+    - Clay content (clay): % (converted from g/kg)
+    - Silt content (silt): % (converted from g/kg)
+    - Sand content (sand): % (converted from g/kg)
+    
+    Standard depths: 0-5, 5-15, 15-30, 30-60, 60-100, 100-200 cm
+    
+    Args:
+        lat (float): Latitude of the farm location (WGS84)
+        lon (float): Longitude of the farm location (WGS84)
+        input_dir (str): Path to the input data directory
+        location (str): Location identifier (e.g., 'TF000')
+    
+    Returns:
+        pd.DataFrame: DataFrame containing soil properties with columns:
+            - depth_cm: depth interval as string
+            - soil_organic_carbon_g_kg: SOC in g/kg
+            - bulk_density_g_cm3: bulk density in g/cm³
+            - clay_fraction_perc: clay content in %
+            - silt_fraction_perc: silt content in %
+            - sand_fraction_perc: sand content in %
+    
+    Raises:
+        ValueError: If coordinates are outside valid range or no data available
+        RuntimeError: If WCS request fails
+    
+    Notes:
+        Requires owslib package (install: pip install owslib)
+        Uses ISRIC SoilGrids WCS v2.0.1 service
+        API documentation: https://docs.isric.org/globaldata/soilgrids/WCS_from_Python.html
+    """
+
+    from pathlib import Path
+    import numpy as np
+
+    # Define soil data directory and file path
+    soil_dir_path = Path(input_dir) / location / 'soil_data'
+    soil_dir_path.mkdir(parents=True, exist_ok=True)
+    soil_csv_file = soil_dir_path / f'soil_data_soilgrids.csv'
+    
+    # Check if soil data already exists
+    if soil_csv_file.exists():
+        print(f"✓ Soil data already exists for location {location}")
+        df = pd.read_csv(soil_csv_file)
+        return df
+    
+    print(f"Downloading SoilGrids soil data for location {location}...")
+    
+    # Validate coordinates
+    if not (-90 <= lat <= 90):
+        raise ValueError(f"Invalid latitude: {lat}. Must be between -90 and 90.")
+    if not (-180 <= lon <= 180):
+        raise ValueError(f"Invalid longitude: {lon}. Must be between -180 and 180.")
+    
+    try:
+        from owslib.wcs import WebCoverageService
+        import rasterio
+        from pyproj import Transformer
+        from typing import Any
+    except ImportError as e:
+        raise RuntimeError(
+            "Required packages not found. Please install: pip install owslib rasterio pyproj"
+        ) from e
+    
+    # Properties to retrieve with their WCS service URLs
+    # Using mean values (Q0.5 = median/mean for WCS)
+    properties = {
+        'soc': 'http://maps.isric.org/mapserv?map=/map/soc.map',
+        'bdod': 'http://maps.isric.org/mapserv?map=/map/bdod.map',
+        'clay': 'http://maps.isric.org/mapserv?map=/map/clay.map',
+        'silt': 'http://maps.isric.org/mapserv?map=/map/silt.map',
+        'sand': 'http://maps.isric.org/mapserv?map=/map/sand.map'
+    }
+    
+    # Standard depth intervals
+    depths = ["0-5cm", "5-15cm", "15-30cm", "30-60cm", "60-100cm", "100-200cm"]
+    
+    # Transform WGS84 coordinates to Homolosine projection (custom SoilGrids CRS)
+    # SoilGrids uses Homolosine equal-area projection (not a standard EPSG code)
+    # PROJ string from SoilGrids documentation
+    homolosine_proj = "+proj=igh +lat_0=0 +lon_0=0 +datum=WGS84 +units=m +no_defs"
+    transformer = Transformer.from_crs("EPSG:4326", homolosine_proj, always_xy=True)
+    x, y = transformer.transform(lon, lat)
+    
+    # Create small buffer around point (250m = SoilGrids resolution)
+    buffer = 250
+    bbox = (x - buffer, y - buffer, x + buffer, y + buffer)
+    
+    # CRS for WCS 2.0.1 (using opengis.net registry format)
+    crs = "http://www.opengis.net/def/crs/EPSG/0/152160"
+    
+    # Collect data for all properties and depths
+    records = []
+    
+    for depth in depths:
+        record: dict[str, float | str] = {"depth_cm": depth}
+        
+        for prop_name, wcs_url in properties.items():
+            try:
+                # Connect to WCS service
+                wcs: Any = WebCoverageService(wcs_url, version='2.0.1')
+                assert wcs is not None
+                
+                # Coverage identifier: property_depth_Q0.5 (Q0.5 = mean/median in SoilGrids)
+                cov_id = f"{prop_name}_{depth}_Q0.5"
+                
+                if cov_id not in wcs.contents:
+                    print(f"  ⚠ Warning: Coverage {cov_id} not found, skipping")
+                    continue
+                
+                # Get coverage format
+                coverage = wcs.contents[cov_id]
+                if not coverage.supportedFormats:
+                    raise RuntimeError(f"No supported formats for coverage {cov_id}")
+                
+                # Define subsets for the point location
+                subsets = [('X', bbox[0], bbox[2]), ('Y', bbox[1], bbox[3])]
+                
+                # Get coverage data
+                response = wcs.getCoverage(
+                    identifier=cov_id,  # Pass as string, not list
+                    crs=crs,
+                    subsets=subsets,
+                    resx=250,
+                    resy=250,
+                    format=coverage.supportedFormats[0]
+                )
+                
+                # Save temporary GeoTIFF and read value
+                temp_tif = soil_dir_path / f'temp_{prop_name}_{depth}.tif'
+                with open(temp_tif, 'wb') as f:
+                    f.write(response.read())
+                
+                # Read the raster value at the point
+                with rasterio.open(temp_tif) as src:
+                    # Read the center pixel
+                    data = src.read(1)
+                    # Get mean value (excluding nodata)
+                    valid_data = data[data != src.nodata]
+                    if len(valid_data) > 0:
+                        value = float(np.mean(valid_data))
+                    else:
+                        raise ValueError(f"No valid data for {prop_name} at {depth}")
+                
+                # Clean up temp file
+                temp_tif.unlink()
+                
+                # Convert units:
+                # SoilGrids WCS returns values in cg/kg for soc, cg/cm³ for bdod, g/kg for clay/silt/sand
+                # soc: cg/kg -> g/kg (divide by 10)
+                # bdod: cg/cm³ -> g/cm³ (divide by 100)
+                # clay/silt/sand: g/kg -> % (divide by 10)
+                if prop_name == "soc":
+                    record["soil_organic_carbon_g_kg"] = round(value / 10, 2)
+                elif prop_name == "bdod":
+                    record["bulk_density_g_cm3"] = round(value / 100, 3)
+                elif prop_name == "clay":
+                    record["clay_fraction_perc"] = round(value / 10, 1)
+                elif prop_name == "silt":
+                    record["silt_fraction_perc"] = round(value / 10, 1)
+                elif prop_name == "sand":
+                    record["sand_fraction_perc"] = round(value / 10, 1)
+                    
+            except Exception as e:
+                print(f"  ⚠ Warning: Failed to get {prop_name} for {depth}: {e}")
+                continue
+        
+        records.append(record)
+    
+    # Create DataFrame
+    df = pd.DataFrame(records)
+    
+    # Verify we got all expected columns
+    expected_cols = [
+        'depth_cm', 'soil_organic_carbon_g_kg', 'bulk_density_g_cm3',
+        'clay_fraction_perc', 'silt_fraction_perc', 'sand_fraction_perc'
+    ]
+    
+    if not all(col in df.columns for col in expected_cols):
+        raise ValueError(
+            f"Incomplete soil data received from SoilGrids WCS. "
+            f"Expected columns: {expected_cols}, got: {list(df.columns)}"
+        )
+    
+    # Save to CSV
+    df.to_csv(soil_csv_file, index=False)
+    print(f"✓ Downloaded and saved soil data to {soil_csv_file}")
+    
+    return df
+
+
+def get_soilgrids_values(farm_soil, soil_depth = 30):
+    """Prepare RothC model inputs for equilibrium run based on farm soil and climate data.
+    Args:
+        farm_soil (pd.DataFrame): DataFrame with soil properties for the farm location.
+        farm_info (pd.Series): Series with farm-level information.
+        plots_meta (pd.DataFrame): DataFrame with plot-level information (e.g., measured clay and SOC).
+        soil_depth (int): Depth of soil to consider for RothC.
+    Returns:
+        climate (pd.DataFrame): DataFrame with monthly climate data, averaged for spinup run, else for the period
+        plots_rothc (pd.DataFrame): Dataframe with soil clay, soc and carbon inputs for each plot
+    """
+
+    import pandas as pd
+
+    ### --- Prepare soil properties --- ###
+
+    # Get aggregated values of soil properties
+    # Select soil layers up to soil_depth
+    farm_soil = farm_soil.copy()
+    
+    if soil_depth <= 5:
+        farm_soil = farm_soil[farm_soil['depth_cm'] == '0-5cm']
+    elif soil_depth <= 15:
+        farm_soil = farm_soil[farm_soil['depth_cm'].isin(['5-15cm', '0-5cm'])]
+    elif soil_depth <= 30:
+        farm_soil = farm_soil[farm_soil['depth_cm'].isin(['15-30cm', '5-15cm', '0-5cm'])]
+    elif soil_depth <= 60:
+        farm_soil = farm_soil[farm_soil['depth_cm'].isin(['30-60cm', '15-30cm', '5-15cm', '0-5cm'])]
+    elif soil_depth <= 100:
+        farm_soil = farm_soil[farm_soil['depth_cm'].isin(['60-100cm', '15-30cm', '5-15cm', '0-5cm'])]
+    
+    # Add depth interval width for weighted averaging
+    depth_widths = {
+        '0-5cm': 5,
+        '5-15cm': 10,
+        '15-30cm': 15,
+        '30-60cm': 30,
+        '60-100cm': 40,
+        '100-200cm': 100
+    }
+    farm_soil['depth_width'] = farm_soil['depth_cm'].map(depth_widths)
+    
+    # Get the weighted average clay percentage across soil depths 
+    clay_perc = (farm_soil['clay_fraction_perc'] * farm_soil['depth_width']).sum() / farm_soil['depth_width'].sum()
+    # Get the weighted average bulk density across soil depths
+    bulk_density = (farm_soil['bulk_density_g_cm3'] * farm_soil['depth_width']).sum() / farm_soil['depth_width'].sum()
+    # Calculate total soil organic carbon in t/ha
+    # SOC (g/kg) * depth (cm) * bulk_density (g/cm³=t/m3) * 0.1 = t/ha
+    # Explanation: t/t (soc g/kg/ 1000) * m (depth cm / 100) * (area) 10000 m2 * t/m3 (bulk_density) → × 0.1 converts to t/ha
+    soc_total = (farm_soil['soil_organic_carbon_g_kg'] / 1000 * farm_soil['depth_width'] / 100 * 10000 * bulk_density).sum()
+
+    # Round values
+    clay_perc = round(clay_perc, 1)
+    bulk_density = round(bulk_density, 3)
+    soc_total = round(soc_total, 2)
+    
+    return clay_perc, soc_total, bulk_density
