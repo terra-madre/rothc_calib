@@ -1,69 +1,75 @@
 # Import necessary libraries
-from pathlib import Path
-from git_code.rothc import *
 import pandas as pd
 from git_code.io_utils import *
 
-# Configurations and paths
-soil_depth = 30  # Soil depth in cm
-cases_df = pd.read_csv("./inputs/data_clean.csv")
-output_dir = Path("./outputs/")
-output_dir.mkdir(parents=True, exist_ok=True)
 
-location = cases_df.iloc[0]['lonlat']
-case_id = cases_df.iloc[0]['case']
-loc_data_dir = Path("./inputs/loc_data/") / location
-climate_file = loc_data_dir / 'climate_data' / 'climate_monthly_mean.csv'
-farm_climate = pd.read_csv(climate_file)
 
-cases_soil_df = cases_df[['case', 'rothc_clay_pct', 'rothc_soc30_t_ha']].copy()
-
-rothc_pools = prepare_rothc_pools(cases_soil_df, "transient")
 
 cases_inputs_df = pd.read_csv("./inputs/data_inputs.csv")
 
+
+def get_rothc_pools(cases_info_df, type, initial_pools=None):
+    """Prepare carbon inputs and initial pool values for RothC model.
+    
+    Args:
+        soil_data (pd.DataFrame): DataFrame with carbon input data per plot
+        type (str): "spinup" or "transient" - determines how pools are initialized
+        initial_pools (pd.DataFrame, optional): DataFrame with initial pool values (columns: plot_name, DPM, RPM, BIO, HUM, IOM, SOC)
+    
+    Returns:
+        pd.DataFrame: Carbon inputs and pool values ready for RothC
+
+    """
+
+    rothc_pools = cases_info_df[['case', 'rothc_clay_pct', 'rothc_soc30_t_ha']].copy()
+    rothc_pools.rename(columns={'rothc_soc30_t_ha': 'SOC'}, inplace=True)
+    clay_pct = rothc_pools['rothc_clay_pct'].values
+    rothc_pools.drop(columns=['rothc_clay_pct'], inplace=True)
+
+    pool_cols = ['DPM', 'RPM', 'BIO', 'HUM', 'IOM', 'SOC']
+
+    # If period is "spinup", pools start at zero (will be calculated)
+    if type == "spinup":
+        for col in pool_cols:
+            rothc_pools[col] = 0.0
+        return rothc_pools
+        
+    required_cols = ['case'] + pool_cols
+    
+    # Use initial_pools if provided
+    if initial_pools is not None:
+        init_pools = initial_pools.copy()
+        rothc_pools = rothc_pools.merge(
+            init_pools[required_cols],
+            on='case',
+            how='left'
+        )
+        return rothc_pools
+    else:
+        # If no initial_pools provided, use soc to calculate pool sizes
+        # Pool distribution: Calculated using pedotransfer functions (Weihermüller et al., 2013):
+        # RPM = (0.1847 × SOC + 0.1555) × (clay + 1.2750)^(-0.1158)
+        # HUM = (0.7148 × SOC + 0.5069) × (clay + 0.3421)^(0.0184)
+        # BIO = (0.0140 × SOC + 0.0075) × (clay + 8.8473)^(0.0567)
+        # IOM = 0.049 × SOC^1.139
+        # DPM = 0 (at equilibrium)
+        rothc_pools['RPM'] = (0.1847 * rothc_pools['SOC'] + 0.1555) * (clay_pct + 1.2750)**(-0.1158)
+        rothc_pools['HUM'] = (0.7148 * rothc_pools['SOC'] + 0.5069) * (clay_pct + 0.3421)**(0.0184)
+        rothc_pools['BIO'] = (0.0140 * rothc_pools['SOC'] + 0.0075) * (clay_pct + 8.8473)**(0.0567)
+        rothc_pools['IOM'] = 0.049 * rothc_pools['SOC']**1.139
+        rothc_pools['DPM'] = 0.0
+        return rothc_pools
+
 # Here we calculate the soil C inputs for each case in cases_inputs_df
-
-
-pools_baseline = []
-pools_project = []
-
-# Loop through each plot and run RothC for baseline and project scenarios
-for _, case in cases_inputs_df.iterrows():
-
-    clay = case['rothc_clay_pct']
+def calc_c_inputs(cases_inputs_df):
+    """Calculate carbon inputs for RothC model based on treatments and case info.
     
-    # Prepare monthly data
-    monthly = rothc_climate.copy()
-    monthly['t_FYM_Inp'] = 0.0
-    monthly['t_PC'] = 1
-
-    # --- Run RothC --- #
-    # Get carbon inputs for this case and add to monthly data, then run RothC
-    plot_carbon_project = rothc_carbon_project[rothc_carbon_project['plot_name'] == plot_name].iloc[0]
-    c_inp_total = plot_carbon_project['t_C_Inp']
-    dpm_rpm = plot_carbon_project['t_DPM_RPM']
-    monthly['t_C_Inp'] = c_inp_total / 12  # Split evenly over 12 months
-    monthly['t_DPM_RPM'] = dpm_rpm
-    rothc_results = rothc_transient(year, clay, soil_depth, monthly, plot_carbon_project, tillage_modifier=tillage_modifier_pr)
-    rothc_results['plot_name'] = plot_name
-    pools_project.append(rothc_results)
-
-# Convert to DataFrame add year column and reorder columns
-pools_baseline = pd.DataFrame(pools_baseline)
-pools_project = pd.DataFrame(pools_project)
-pools_baseline['year'] = year  # Initial soil carbon is for the year before project start
-pools_project['year'] = year
-cols_order = ['plot_name', 'year', 'DPM', 'RPM', 'BIO', 'HUM', 'IOM', 'SOC']
-pools_baseline = pools_baseline[cols_order]
-pools_project = pools_project[cols_order]
-
-soilc_baseline = pd.concat([soilc_baseline, pools_baseline], ignore_index=True)
-soilc_project = pd.concat([soilc_project, pools_project], ignore_index=True)
-
-# Save the RothC input datasets as separate CSV files
-for input_type in ["climate", "soil", "carbon_baseline", "carbon_project"]:
-    df = locals()[f"rothc_{input_type}"]
-    output_file = soilc_dir_path / f'rothc_{input_type}_{year}.csv'
-    df.to_csv(output_file, index=False)
+    Args:
+        cases_inputs_df (pd.DataFrame): DataFrame with treatment info per case (columns: case, year, treatment, etc.)
     
+    Returns:
+        pd.DataFrame: DataFrame with calculated carbon inputs per case and year
+    """
+    
+
+    pass
