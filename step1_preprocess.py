@@ -6,40 +6,44 @@ from io_utils import *
 
 
 def prepare_cases_df(
-    data_clean_df,
+    cases_info_df,
     input_dir,
     loc_data_dir,
+    proc_data_dir,
     soil_depth_cm=30,
     nuts_version='2024'
 ):
     """Enrich the case table with optional preprocessing steps."""
-    data_clean_df = fetch_soil_data(data_clean_df, loc_data_dir, soil_depth=soil_depth_cm)
+    cases_info_df = fetch_soil_data(cases_info_df, loc_data_dir, soil_depth=soil_depth_cm)
 
-    data_clean_df = fetch_climate_data(data_clean_df, loc_data_dir, average_climate=True)
+    cases_info_df = fetch_climate_data(cases_info_df, loc_data_dir, average_climate=True)
 
-    data_clean_df = prepare_initial_soc(
-        data_clean_df,
+    cases_info_df = prepare_initial_soc(
+        cases_info_df,
         input_dir=input_dir,
         soil_depth_cm=soil_depth_cm
         )
 
-    data_clean_df = add_nuts3_column(
-        data_clean_df,
+    cases_info_df = add_nuts3_column(
+        cases_info_df,
         input_dir=input_dir,
         nuts_version=nuts_version,
         strict=True,
     )
 
-    return data_clean_df
+    # Save processed cases table
+    cases_info_df.to_csv(proc_data_dir / "cases_info.csv", index=False)
+
+    return cases_info_df
 
 
-def fetch_soil_data(data_clean_df, loc_data_dir, soil_depth=30, out_csv_path=None):
-    data_clean_df['grids_clay_pct'] = None
-    data_clean_df['bulk_density_g_cm3'] = None
-    data_clean_df['grids_soc30_t_ha'] = None
-    data_clean_df['rothc_clay_pct'] = None
-    data_clean_df['rothc_soc30_t_ha'] = None
-    for index, row in data_clean_df.iterrows():
+def fetch_soil_data(cases_info_df, loc_data_dir, soil_depth=30, out_csv_path=None):
+    cases_info_df['grids_clay_pct'] = None
+    cases_info_df['bulk_density_g_cm3'] = None
+    cases_info_df['grids_soc30_t_ha'] = None
+    cases_info_df['rothc_clay_pct'] = None
+    cases_info_df['rothc_soc30_t_ha'] = None
+    for index, row in cases_info_df.iterrows():
         case_id = row['case']
         print(f"Fetching soil data for case: {case_id}")
         lat = row['latitude']
@@ -49,22 +53,22 @@ def fetch_soil_data(data_clean_df, loc_data_dir, soil_depth=30, out_csv_path=Non
         farm_soil_grids = get_soilgrids_data(lat=lat, lon=lon, input_dir=loc_data_dir, location=location)
         grid_clay, grid_soc, grid_bulkdensity = get_soilgrids_values(farm_soil_grids, soil_depth=soil_depth)
         # Set value of row['rothc_clay_pct'] to row['clay_pct'] if not null, else to grid_clay
-        data_clean_df.at[index, 'rothc_clay_pct'] = row['clay_pct'] if pd.notnull(row['clay_pct']) else grid_clay
-        # data_clean_df.at[index, 'rothc_soc_pct'] = row['soc_pct'] if pd.notnull(row['soc_pct']) else grid_soc # Implement eventually when soc_pct is added to data_clean.csv
-        data_clean_df.at[index, 'grids_clay_pct'] = grid_clay
-        data_clean_df.at[index, 'grids_soc30_t_ha'] = grid_soc
-        data_clean_df.at[index, 'bulk_density_g_cm3'] = grid_bulkdensity
+        cases_info_df.at[index, 'rothc_clay_pct'] = row['clay_pct'] if pd.notnull(row['clay_pct']) else grid_clay
+        # cases_info_df.at[index, 'rothc_soc_pct'] = row['soc_pct'] if pd.notnull(row['soc_pct']) else grid_soc # Implement eventually when soc_pct is added to data_clean.csv
+        cases_info_df.at[index, 'grids_clay_pct'] = grid_clay
+        cases_info_df.at[index, 'grids_soc30_t_ha'] = grid_soc
+        cases_info_df.at[index, 'bulk_density_g_cm3'] = grid_bulkdensity
 
     if out_csv_path is not None:
-        data_clean_df.to_csv(out_csv_path, index=False)
+        cases_info_df.to_csv(out_csv_path, index=False)
 
-    return data_clean_df
+    return cases_info_df
 
 
-def fetch_climate_data(data_clean_df, loc_data_dir, average_climate=True):
-    data_clean_df['map_mm'] = None
+def fetch_climate_data(cases_info_df, loc_data_dir, average_climate=True):
+    cases_info_df['map_mm'] = None
 
-    for index, row in data_clean_df.iterrows():
+    for index, row in cases_info_df.iterrows():
         case_id = row['case']
         print(f"Processing case: {case_id}")
         lat = row['latitude']
@@ -75,7 +79,7 @@ def fetch_climate_data(data_clean_df, loc_data_dir, average_climate=True):
         farm_climate = get_farm_climate(lat=lat, lon=lon, out_dir=loc_data_dir, location=location, start_year=2000, end_year=2020)
         annual_precip = farm_climate.groupby('year')['total_precipitation_mm'].sum().reset_index()
         map_value = round(annual_precip['total_precipitation_mm'].mean())
-        data_clean_df.at[index, 'map_mm'] = map_value
+        cases_info_df.at[index, 'map_mm'] = map_value
 
         if average_climate:
             # Average farm_climate into a single year of climate data
@@ -95,11 +99,11 @@ def fetch_climate_data(data_clean_df, loc_data_dir, average_climate=True):
         # save to csv
         rothc_climate.to_csv(loc_data_dir / location / "climate_data" / f"rothc_climate.csv", index=False)
 
-    return data_clean_df
+    return cases_info_df
 
 
 def add_ipcc_climate_zone(
-    data_clean_df,
+    cases_info_df,
     input_dir,
     climate_zones_tif="IPCC_Climate_Zones_ts_3.25.tif",
     lat_col='latitude',
@@ -109,8 +113,8 @@ def add_ipcc_climate_zone(
     """Add IPCC climate zone to each case using a raster lookup."""
     climate_zones_file = Path(input_dir) / climate_zones_tif
 
-    data_clean_df[out_col] = ''
-    for index, row in data_clean_df.iterrows():
+    cases_info_df[out_col] = ''
+    for index, row in cases_info_df.iterrows():
         case_id = row['case'] if 'case' in row else index
 
         lat = row[lat_col]
@@ -120,43 +124,43 @@ def add_ipcc_climate_zone(
             lon=lon,
             climate_zones_file=climate_zones_file,
         )
-        data_clean_df.at[index, out_col] = ipcc_zone
+        cases_info_df.at[index, out_col] = ipcc_zone
 
-    return data_clean_df
+    return cases_info_df
 
 
 def prepare_initial_soc(
-    data_clean_df,
+    cases_info_df,
     input_dir,
     soil_depth_cm=30,
     climate_zones_tif="IPCC_Climate_Zones_ts_3.25.tif",
     medinet_csv="medinet_soil_carbon.csv"
 ):
     """End-to-end initial SOC preparation: climate zone -> Medinet merge -> normalize -> choose RothC SOC."""
-    data_clean_df = add_ipcc_climate_zone(
-        data_clean_df=data_clean_df,
+    cases_info_df = add_ipcc_climate_zone(
+        cases_info_df=cases_info_df,
         input_dir=input_dir,
         climate_zones_tif=climate_zones_tif
     )
-    data_clean_df = merge_medinet_soc(data_clean_df=data_clean_df, input_dir=input_dir, medinet_csv=medinet_csv)
-    data_clean_df = normalize_soc_to_depth(data_clean_df=data_clean_df, soil_depth_cm=soil_depth_cm)
-    data_clean_df = set_rothc_soc30(data_clean_df=data_clean_df)
-    return data_clean_df
+    cases_info_df = merge_medinet_soc(cases_info_df=cases_info_df, input_dir=input_dir, medinet_csv=medinet_csv)
+    cases_info_df = normalize_soc_to_depth(cases_info_df=cases_info_df, soil_depth_cm=soil_depth_cm)
+    cases_info_df = set_rothc_soc30(cases_info_df=cases_info_df)
+    return cases_info_df
 
 
 def merge_medinet_soc(
-    data_clean_df,
+    cases_info_df,
     input_dir,
     medinet_csv="medinet_soil_carbon.csv",
     on_cols=('ipcc_climate_zone', 'land_use'),
 ):
     """Merge Medinet SOC reference values into the case table."""
-    medinet_soc_df = pd.read_csv(Path(input_dir) / medinet_csv)
-    return pd.merge(data_clean_df, medinet_soc_df, on=list(on_cols), how='left')
+    medinet_soc_df = pd.read_csv(Path(input_dir) / "raw" / medinet_csv)
+    return pd.merge(cases_info_df, medinet_soc_df, on=list(on_cols), how='left')
 
 
 def normalize_soc_to_depth(
-    data_clean_df,
+    cases_info_df,
     soil_depth_cm,
     soc_col='soc_t_ha',
     delta_soc_col='delta_soc_t_ha_y',
@@ -166,24 +170,24 @@ def normalize_soc_to_depth(
 ):
     """Normalize SOC and delta-SOC to a fixed soil depth (simple proportional scaling)."""
     required = {soc_col, sampling_depth_col}
-    missing = required - set(data_clean_df.columns)
+    missing = required - set(cases_info_df.columns)
     if missing:
         raise ValueError(f"Missing required columns for SOC normalization: {sorted(missing)}")
 
-    data_clean_df[out_soc30_col] = data_clean_df[soc_col] / data_clean_df[sampling_depth_col] * soil_depth_cm
-    data_clean_df[out_soc30_col] = data_clean_df[out_soc30_col].round(2)
+    cases_info_df[out_soc30_col] = cases_info_df[soc_col] / cases_info_df[sampling_depth_col] * soil_depth_cm
+    cases_info_df[out_soc30_col] = cases_info_df[out_soc30_col].round(2)
 
-    if delta_soc_col in data_clean_df.columns:
-        data_clean_df[out_delta_soc30_col] = (
-            data_clean_df[delta_soc_col] / data_clean_df[sampling_depth_col] * soil_depth_cm
+    if delta_soc_col in cases_info_df.columns:
+        cases_info_df[out_delta_soc30_col] = (
+            cases_info_df[delta_soc_col] / cases_info_df[sampling_depth_col] * soil_depth_cm
         )
-        data_clean_df[out_delta_soc30_col] = data_clean_df[out_delta_soc30_col].round(2)
+        cases_info_df[out_delta_soc30_col] = cases_info_df[out_delta_soc30_col].round(2)
 
-    return data_clean_df
+    return cases_info_df
 
 
 def set_rothc_soc30(
-    data_clean_df,
+    cases_info_df,
     out_col='rothc_soc30_t_ha',
     prefer_cols=('soc30_t_ha', 'grids_soc30_t_ha', 'medinet_soc30_t_ha'),
 ):
@@ -193,15 +197,15 @@ def set_rothc_soc30(
 
     series = None
     for col in prefer_cols:
-        if col not in data_clean_df.columns:
+        if col not in cases_info_df.columns:
             continue
-        series = data_clean_df[col] if series is None else series.fillna(data_clean_df[col])
+        series = cases_info_df[col] if series is None else series.fillna(cases_info_df[col])
 
     if series is None:
-        raise ValueError(f"None of prefer_cols exist in data_clean_df: {list(prefer_cols)}")
+        raise ValueError(f"None of prefer_cols exist in cases_info_df: {list(prefer_cols)}")
 
-    data_clean_df[out_col] = series
-    return data_clean_df
+    cases_info_df[out_col] = series
+    return cases_info_df
 
 
 def load_nuts3_regions(
@@ -260,7 +264,7 @@ def load_nuts3_regions(
 
 
 def add_nuts3_column(
-    data_clean_df,
+    cases_info_df,
     input_dir,
     nuts_version='2024',
     nuts_geojson_path=None,
@@ -275,9 +279,9 @@ def add_nuts3_column(
     import pandas as pd
 
     required_cols = {lat_col, lon_col}
-    missing_cols = required_cols - set(data_clean_df.columns)
+    missing_cols = required_cols - set(cases_info_df.columns)
     if missing_cols:
-        raise ValueError(f"data_clean_df is missing required columns: {sorted(missing_cols)}")
+        raise ValueError(f"cases_info_df is missing required columns: {sorted(missing_cols)}")
 
     nuts3_polys = load_nuts3_regions(
         input_dir=input_dir,
@@ -288,8 +292,8 @@ def add_nuts3_column(
     nuts3_polys = gpd.GeoDataFrame(nuts3_polys, geometry='geometry', crs='EPSG:4326')
 
     points_gdf = gpd.GeoDataFrame(
-        data_clean_df.copy(),
-        geometry=gpd.points_from_xy(data_clean_df[lon_col], data_clean_df[lat_col]),
+        cases_info_df.copy(),
+        geometry=gpd.points_from_xy(cases_info_df[lon_col], cases_info_df[lat_col]),
         crs='EPSG:4326',
     )
 
@@ -791,3 +795,73 @@ def get_soilgrids_values(farm_soil, soil_depth = 30):
     soc_total = round(soc_total, 2)
     
     return clay_perc, soc_total, bulk_density
+
+
+def get_st_yields(cases_info_df, fixed_data_dir, loc_data_dir):
+    """Get yields for each case based on location info."""
+
+    st_yields = pd.read_csv(fixed_data_dir / "st_yields.csv")
+    
+    all_st_yields_selected = []
+
+    # Process unique NUTS3 regions only to avoid duplicates
+    unique_nuts3 = cases_info_df['nuts3'].unique()
+    
+    for nuts3 in unique_nuts3:
+        nuts0 = nuts3[:2]  # Country level
+        nuts1 = nuts3[:3]  # Major socio-economic regions
+        nuts2 = nuts3[:4]  # Basic regions for regional policies
+
+        # Fill missing values with 0 for calculating area-weighted yields
+        yield_cols = ['yield_dry_rainfed_t_ha', 'yield_dry_irrigated_t_ha', 'area_rainfed_ha', 'area_irrigated_ha']
+        st_yields[yield_cols] = st_yields[yield_cols].fillna(0)
+
+        # Calculate area-weighted yields (needed for historical data)
+        st_yields['yield_dry_weighted_t_ha'] = (
+            (st_yields['yield_dry_rainfed_t_ha'] * st_yields['area_rainfed_ha'] +
+            st_yields['yield_dry_irrigated_t_ha'] * st_yields['area_irrigated_ha']) /
+            (st_yields['area_rainfed_ha'] + st_yields['area_irrigated_ha'])
+        ).where((st_yields['area_rainfed_ha'] + st_yields['area_irrigated_ha']) > 0, 0).round(2)
+
+        # Set 0 values in yield_cols back to missing
+        st_yields[yield_cols] = st_yields[yield_cols].replace(0, pd.NA)
+
+        # Get yields at each NUTS level
+        st_yields_nuts3 = st_yields[st_yields['nuts_code'] == nuts3][['group_name', 'yield_dry_rainfed_t_ha', 'yield_dry_irrigated_t_ha', 'yield_dry_weighted_t_ha']].copy()
+        st_yields_nuts2 = st_yields[st_yields['nuts_code'] == nuts2][['group_name', 'yield_dry_rainfed_t_ha', 'yield_dry_irrigated_t_ha', 'yield_dry_weighted_t_ha']].copy()
+        st_yields_nuts1 = st_yields[st_yields['nuts_code'] == nuts1][['group_name', 'yield_dry_rainfed_t_ha', 'yield_dry_irrigated_t_ha', 'yield_dry_weighted_t_ha']].copy()
+        st_yields_nuts0 = st_yields[st_yields['nuts_code'] == nuts0][['group_name', 'yield_dry_rainfed_t_ha', 'yield_dry_irrigated_t_ha', 'yield_dry_weighted_t_ha']].copy()
+
+        # Drop rows with missing or zero yield values
+        st_yields_nuts3 = st_yields_nuts3.dropna(subset=['yield_dry_rainfed_t_ha', 'yield_dry_irrigated_t_ha'], how='all')
+        st_yields_nuts3 = st_yields_nuts3[~((st_yields_nuts3['yield_dry_rainfed_t_ha'] == 0) & (st_yields_nuts3['yield_dry_irrigated_t_ha'] == 0))]
+        st_yields_nuts2 = st_yields_nuts2.dropna(subset=['yield_dry_rainfed_t_ha', 'yield_dry_irrigated_t_ha'], how='all')
+        st_yields_nuts2 = st_yields_nuts2[~((st_yields_nuts2['yield_dry_rainfed_t_ha'] == 0) & (st_yields_nuts2['yield_dry_irrigated_t_ha'] == 0))]
+        st_yields_nuts1 = st_yields_nuts1.dropna(subset=['yield_dry_rainfed_t_ha', 'yield_dry_irrigated_t_ha'], how='all')
+        st_yields_nuts1 = st_yields_nuts1[~((st_yields_nuts1['yield_dry_rainfed_t_ha'] == 0) & (st_yields_nuts1['yield_dry_irrigated_t_ha'] == 0))]
+        st_yields_nuts0 = st_yields_nuts0.dropna(subset=['yield_dry_rainfed_t_ha', 'yield_dry_irrigated_t_ha'], how='all')
+        st_yields_nuts0 = st_yields_nuts0[~((st_yields_nuts0['yield_dry_rainfed_t_ha'] == 0) & (st_yields_nuts0['yield_dry_irrigated_t_ha'] == 0))]
+        
+        # Assign priority to each level (higher number = higher priority/more specific)
+        st_yields_nuts3['yield_nuts_level'] = 3
+        st_yields_nuts2['yield_nuts_level'] = 2
+        st_yields_nuts1['yield_nuts_level'] = 1
+        st_yields_nuts0['yield_nuts_level'] = 0
+
+        # Combine all levels and sort by priority (descending) to prefer more specific values
+        st_yields_combined = pd.concat([st_yields_nuts3, st_yields_nuts2, st_yields_nuts1, st_yields_nuts0], ignore_index=True)
+    
+        # For each group_name, keep only the row with highest priority (most specific NUTS level)
+        st_yields_selected = st_yields_combined.sort_values('yield_nuts_level', ascending=False).drop_duplicates(subset='group_name', keep='first')
+
+        # Add nuts3 column
+        st_yields_selected['nuts3'] = nuts3
+        
+        # Append to collection
+        all_st_yields_selected.append(st_yields_selected)
+
+    # Combine all locations and save once
+    st_yields_all = pd.concat(all_st_yields_selected, ignore_index=True)
+    st_yields_all.to_csv(loc_data_dir / "st_yields_selected.csv", index=False)
+
+    return st_yields_all
