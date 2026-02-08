@@ -16,13 +16,17 @@ def prepare_cases_df(
     """Enrich the case table with optional preprocessing steps."""
     cases_info_df = fetch_soil_data(cases_info_df, loc_data_dir, soil_depth=soil_depth_cm)
 
-    cases_info_df = fetch_climate_data(cases_info_df, loc_data_dir, average_climate=True)
+    cases_info_df, climate_df = fetch_climate_data(
+        cases_info_df,
+        loc_data_dir,
+        average_climate=True
+    )
 
     cases_info_df = prepare_initial_soc(
         cases_info_df,
         input_dir=input_dir,
         soil_depth_cm=soil_depth_cm
-        )
+    )
 
     cases_info_df = add_nuts3_column(
         cases_info_df,
@@ -34,7 +38,7 @@ def prepare_cases_df(
     # Save processed cases table
     cases_info_df.to_csv(proc_data_dir / "cases_info.csv", index=False)
 
-    return cases_info_df
+    return cases_info_df, climate_df
 
 
 def fetch_soil_data(cases_info_df, loc_data_dir, soil_depth=30, out_csv_path=None):
@@ -65,8 +69,13 @@ def fetch_soil_data(cases_info_df, loc_data_dir, soil_depth=30, out_csv_path=Non
     return cases_info_df
 
 
-def fetch_climate_data(cases_info_df, loc_data_dir, average_climate=True):
+def fetch_climate_data(
+    cases_info_df,
+    loc_data_dir,
+    average_climate=True,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     cases_info_df['map_mm'] = None
+    climate_rows = []
 
     for index, row in cases_info_df.iterrows():
         case_id = row['case']
@@ -96,10 +105,19 @@ def fetch_climate_data(cases_info_df, loc_data_dir, average_climate=True):
             'potential_evaporation_mm': 't_evap'
         })
         rothc_climate = rothc_climate[['t_year', 't_month', 't_tmp', 't_rain', 't_evap']]
-        # save to csv
-        rothc_climate.to_csv(loc_data_dir / location / "climate_data" / f"rothc_climate.csv", index=False)
+        rothc_climate['case'] = case_id
+        rothc_climate = rothc_climate[['case', 't_year', 't_month', 't_tmp', 't_rain', 't_evap']]
+        climate_rows.append(rothc_climate)
 
-    return cases_info_df
+    if climate_rows:
+        climate_df = pd.concat(climate_rows, ignore_index=True)
+    else:
+        climate_df = pd.DataFrame(
+            columns=['case', 't_year', 't_month', 't_tmp', 't_rain', 't_evap']
+        )
+    climate_df.to_csv(loc_data_dir / "rothc_climate_avg.csv", index=False)
+
+    return cases_info_df, climate_df
 
 
 def add_ipcc_climate_zone(
@@ -354,20 +372,26 @@ def get_farm_climate(lat, lon, out_dir, location, start_year=2000, end_year=None
         end_year = current_year - 1
     years = [str(year) for year in range(start_year, end_year + 1)]
     
+    required_years = set(int(y) for y in years)
+    needs_download = True
+
     # Check if climate data already exists and contains all required years
     if climate_csv_file.exists():
         print(f"✓ Climate data already exists for location {location}")
         df = pd.read_csv(climate_csv_file)
         # Check that all required years are present
-        required_years = set(int(y) for y in years)
         present_years = set(df['year'].unique())
         if required_years.issubset(present_years):
             return df
+        needs_download = True
     
     # Load required libraries for netcdf processing and CDS API
     import xarray as xr
     import cdsapi
     
+    if needs_download and climate_nc_file.exists():
+        climate_nc_file.unlink()
+
     if not climate_nc_file.exists():
         print(f"Downloading ERA5-Land climate data for location {location}...")
         
