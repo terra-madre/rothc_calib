@@ -119,5 +119,38 @@ rothc_yearly_results.to_csv(output_dir / "rothc_yearly_results.csv", index=False
 deltas_df = step6.calc_deltas(rothc_yearly_results)
 deltas_df.to_csv(output_dir / "rothc_deltas.csv", index=False)
 
-# Settings for calibration
-cases_info_df
+# Merge deltas with observed data by case and calculate the differences between observed and predicted deltas
+comparison_df = deltas_df.merge(
+    cases_info_df[['case', 'delta_soc_t_ha_y']], 
+    on='case', 
+    how='left'
+)
+
+# Calculate residuals (observed - predicted)
+comparison_df['residual'] = comparison_df['delta_soc_t_ha_y'] - comparison_df['delta_treatment_control_per_year']
+comparison_df['residual_sq'] = comparison_df['residual'] ** 2
+
+# Calculate calibration metrics
+rmse = (comparison_df['residual_sq'].mean()) ** 0.5
+mae = comparison_df['residual'].abs().mean()
+bias = comparison_df['residual'].mean()
+
+# Calibrated parameters
+calibrated_params = pd.DataFrame({
+    'parameter': [
+        'dr_ratio_amend', # This is the decomposable to resistant ratio for amendments (manure, compost, etc.).
+        'dr_ratio_annuals', # This is the decomposable to resistant ratio for annual herbaceous plants (crops and non-crop herbaceous vegetation).
+        'dr_ratio_treegrass', # This is the decomposable to resistant ratio for tree roots.
+        'dr_ratio_wood', # This is the decomposable to resistant ratio for wood.
+        'map_to_prod', # This is the coefficient to calculate productivity (yield) from the mean annual precipitation (MAP).
+        'grass_rs_ratio', # This corresponds to the variable 'r_s_ratio (kg/kg)' but only for grasses, not other herbaceous plants.
+        'tree_fine_total_root_ratio', # This is the variable 'fine_tot_r_ratio (kg/kg)' in the parameter file, renamed for clarity.
+        'plant_cover_modifier', # This is the decomposition rates modifier from plant cover in RothC.
+        'residue_fraction_remaining' # This is the fraction of remaining crop residues after harvest under conservation management (residues left on the field).
+        ],
+    'start_value': [1.0, 1.44, 0.67, 0.25, 0.006, 0.5, 0.3, 0.6, 1.0],  # Starting values for optimization (can be adjusted based on literature or expert knowledge)
+    'min_value': [0.5, 0.5, 0.5, 0.5, 0.003, 0.8, 0.1, 0.4, 0.7],  # Example min values for optimization
+    'max_value': [1.5, 1.5, 1.5, 1.5, 0.009, 2.0, 0.6, 0.8, 1.0],  # Example max values for optimization
+    'calibrated_value': [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],  # Placeholder; replace with actual calibrated values after optimization
+    'calibrate': [False, False, False, False, False, False, False, False, False]  # Whether to include in calibration optimization
+})
