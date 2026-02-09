@@ -93,11 +93,12 @@ initial_pools_df = step3.get_rothc_pools(cases_info_df, type="transient")
 
 # print("\nProcessing complete!")
 
-rothc_results = step4.run_rothc(
+rothc_yearly_results, rothc_monthly_results = step4.run_rothc(
     cases_treatments_df=cases_treatments_df,
     cases_info_df=cases_info_df,
     climate_df=climate_df,
     carbon_inputs_df=carbon_inputs_df,
     initial_pools_df=initial_pools_df,
+    plant_cover_df=plant_cover_df,
     soil_depth_cm=soil_depth
 )

@@ -7,28 +7,31 @@ def run_rothc(
         climate_df,
         carbon_inputs_df,
         initial_pools_df,
+        plant_cover_df,
         soil_depth_cm=30
     ):
     """
     Run RothC model for all cases, looping over a single year of averaged climate data.
     
     Returns:
-        tuple: (yearly_results_df, monthly_results_df) with case_id and group columns
+        tuple: (yearly_results_df, monthly_results_df) with subcase and group columns
     """
     
     # Initialize lists to accumulate results across all cases
     all_years_list = []
     all_months_list = []
     
-    # Loop through each case and run RothC for each
-    for _, case in cases_treatments_df.iterrows():
+    # Loop through each subcase and run RothC for each
+    for _, subcase in cases_treatments_df.iterrows():
 
         # Get case information and parameters
-        case_id = case['case']
-        group = case['group']  # control or treatment
+        subcase_id = subcase['subcase']
+        case_id = subcase['case']
+        group = subcase['group']  # control or treatment
         case_info = cases_info_df[cases_info_df['case'] == case_id].iloc[0]
         case_climate = climate_df[climate_df['case'] == case_id].reset_index(drop=True)
-        case_c_inputs = carbon_inputs_df[carbon_inputs_df['case'] == case_id].iloc[0]
+        case_c_inputs = carbon_inputs_df[carbon_inputs_df['subcase'] == subcase_id].iloc[0]
+        case_plant_cover = plant_cover_df[plant_cover_df['subcase'] == subcase_id].reset_index(drop=True)
 
         # Get start year and duration
         start_year = 1
@@ -60,7 +63,7 @@ def run_rothc(
         dpm_rpm = case_c_inputs['dpm_rpm_ratio']
 
         # Store initial state (year 0, January)
-        all_years_list.append([case_id, group, 0, 1, DPM[0], RPM[0], BIO[0], HUM[0], IOM[0], SOC[0]])
+        all_years_list.append([subcase_id, case_id, group, 0, 1, DPM[0], RPM[0], BIO[0], HUM[0], IOM[0], SOC[0]])
 
         # Run RothC for each month
         for i in range(nsteps):
@@ -69,11 +72,11 @@ def run_rothc(
             current_year = start_year + (i // 12)
             
             # Get climate data for this month (cycling through 12-month climate)
-            climate_idx = i % 12
-            TEMP = monthly.iloc[climate_idx]['t_tmp']
-            RAIN = monthly.iloc[climate_idx]['t_rain']
-            PEVAP = monthly.iloc[climate_idx]['t_evap']
-            PC = 1.0  # Assuming plant cover in all cases for simplicity.
+            monthly_idx = i % 12
+            TEMP = monthly.iloc[monthly_idx]['t_tmp']
+            RAIN = monthly.iloc[monthly_idx]['t_rain']
+            PEVAP = monthly.iloc[monthly_idx]['t_evap']
+            PC = case_plant_cover.iloc[monthly_idx]['t_PC']  # Plant cover for this month
             FYM_Inp = 0.0  # Amendment inputs already calculated in C_Inp column
             
             DPM_RPM = dpm_rpm
@@ -85,18 +88,18 @@ def run_rothc(
                   PC, DPM_RPM, C_Inp, FYM_Inp, SWC, RM_TILL=1.0)
             
             # Store monthly results
-            all_months_list.append([case_id, group, current_year, current_month, 
+            all_months_list.append([subcase_id, case_id, group, current_year, current_month, 
                                    DPM[0], RPM[0], BIO[0], HUM[0], IOM[0], SOC[0]])
             
             # Store yearly results (at the end of December)
             if current_month == 12:
-                all_years_list.append([case_id, group, current_year, 12, 
+                all_years_list.append([subcase_id, case_id, group, current_year, 12, 
                                       DPM[0], RPM[0], BIO[0], HUM[0], IOM[0], SOC[0]])
 
     # Create output dataframes
-    year_columns = ["case_id", "group", "year", "month", "DPM_t_C_ha", "RPM_t_C_ha", 
+    year_columns = ["subcase", "case", "group", "year", "month", "DPM_t_C_ha", "RPM_t_C_ha", 
                    "BIO_t_C_ha", "HUM_t_C_ha", "IOM_t_C_ha", "SOC_t_C_ha"]
-    month_columns = ["case_id", "group", "year", "month", "DPM_t_C_ha", "RPM_t_C_ha", 
+    month_columns = ["subcase", "case", "group", "year", "month", "DPM_t_C_ha", "RPM_t_C_ha", 
                     "BIO_t_C_ha", "HUM_t_C_ha", "IOM_t_C_ha", "SOC_t_C_ha"]
     
     output_years = pd.DataFrame(all_years_list, columns=year_columns)
