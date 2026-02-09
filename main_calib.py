@@ -16,6 +16,8 @@ loc_data_dir.mkdir(parents=True, exist_ok=True)
 proc_data_dir = input_dir / "processed"
 proc_data_dir.mkdir(parents=True, exist_ok=True)
 fixed_data_dir = input_dir / "fixed_values"
+output_dir = repo_root / "outputs"
+output_dir.mkdir(parents=True, exist_ok=True)
 
 do_preprocess_cases = False  # Whether to run the preprocessing step (fetching/enriching data for cases)
 do_get_st_yields = False  # Whether to calculate st_yields (can be time-consuming)
@@ -102,3 +104,5 @@ rothc_yearly_results, rothc_monthly_results = step4.run_rothc(
     plant_cover_df=plant_cover_df,
     soil_depth_cm=soil_depth
 )
+rothc_monthly_results.to_csv(output_dir / "rothc_monthly_results.csv", index=False)
+rothc_yearly_results.to_csv(output_dir / "rothc_yearly_results.csv", index=False)

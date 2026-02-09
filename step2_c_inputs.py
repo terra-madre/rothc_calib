@@ -414,7 +414,7 @@ def plant_cover(cases_treatments_df):
         ]
 
         # Determine the soil cover:
-        if subcase['grass_percent_cover'] == 100:
+        if subcase['grass_perc_cover'] == 100:
             # Full grass cover: array of 1s (fully covered)
             PC = [1] * 12
         elif pd.notna(subcase['covercrop']):

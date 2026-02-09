@@ -105,4 +105,9 @@ def run_rothc(
     output_years = pd.DataFrame(all_years_list, columns=year_columns)
     output_months = pd.DataFrame(all_months_list, columns=month_columns)
 
+    # Round numeric columns to 2 decimal places
+    numeric_cols = ["DPM_t_C_ha", "RPM_t_C_ha", "BIO_t_C_ha", "HUM_t_C_ha", "IOM_t_C_ha", "SOC_t_C_ha"]
+    output_years[numeric_cols] = output_years[numeric_cols].round(2)
+    output_months[numeric_cols] = output_months[numeric_cols].round(2)
+
     return output_years, output_months
