@@ -1,3 +1,5 @@
+import pandas as pd
+
 def plant_cover(cases_treatments_df):
     """Calculate monthly plant cover for each subcase.
     

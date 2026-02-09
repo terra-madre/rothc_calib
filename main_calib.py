@@ -8,6 +8,7 @@ import step2_c_inputs as step2
 import step3_c_initial as step3
 import step4_plant_cover as step4
 import step5_run_rothc as step5
+import step6_calc_deltas as step6
 
 # configuration and paths
 repo_root = Path(__file__).resolve().parents[1]
@@ -113,3 +114,10 @@ rothc_yearly_results, rothc_monthly_results = step5.run_rothc(
 )
 rothc_monthly_results.to_csv(output_dir / "rothc_monthly_results.csv", index=False)
 rothc_yearly_results.to_csv(output_dir / "rothc_yearly_results.csv", index=False)
+
+# Step 6: Calculate treatment-control differences
+deltas_df = step6.calc_deltas(rothc_yearly_results)
+deltas_df.to_csv(output_dir / "rothc_deltas.csv", index=False)
+
+# Settings for calibration
+cases_info_df
