@@ -6,7 +6,8 @@ import pandas as pd
 import step1_preprocess as step1
 import step2_c_inputs as step2
 import step3_c_initial as step3
-import step4_run_rothc as step4
+import step4_plant_cover as step4
+import step5_run_rothc as step5
 
 # configuration and paths
 repo_root = Path(__file__).resolve().parents[1]
@@ -16,6 +17,7 @@ loc_data_dir.mkdir(parents=True, exist_ok=True)
 proc_data_dir = input_dir / "processed"
 proc_data_dir.mkdir(parents=True, exist_ok=True)
 fixed_data_dir = input_dir / "fixed_values"
+fixed_data_dir.mkdir(parents=True, exist_ok=True)
 output_dir = repo_root / "outputs"
 output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -74,8 +76,6 @@ carbon_inputs_df = step2.calc_c_inputs(
 )
 # carbon_inputs_df.to_csv(proc_data_dir / "carbon_inputs.csv", index=False)
 
-plant_cover_df = step2.plant_cover(cases_treatments_df)
-plant_cover_df.to_csv(proc_data_dir / "plant_cover.csv", index=False)
 
 # Step 3: Calculate initial soil carbon pools for each case
 initial_pools_df = step3.get_rothc_pools(cases_info_df, type="transient")
@@ -95,7 +95,14 @@ initial_pools_df = step3.get_rothc_pools(cases_info_df, type="transient")
 
 # print("\nProcessing complete!")
 
-rothc_yearly_results, rothc_monthly_results = step4.run_rothc(
+
+# Step 4: Calculate plant cover for each case
+plant_cover_df = step4.plant_cover(cases_treatments_df)
+plant_cover_df.to_csv(proc_data_dir / "plant_cover.csv", index=False)
+
+
+# Step 5: Run RothC model for each case and compile results
+rothc_yearly_results, rothc_monthly_results = step5.run_rothc(
     cases_treatments_df=cases_treatments_df,
     cases_info_df=cases_info_df,
     climate_df=climate_df,
