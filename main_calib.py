@@ -18,7 +18,7 @@ proc_data_dir.mkdir(parents=True, exist_ok=True)
 fixed_data_dir = input_dir / "fixed_values"
 
 do_preprocess_cases = False  # Whether to run the preprocessing step (fetching/enriching data for cases)
-do_get_st_yields = True  # Whether to calculate st_yields (can be time-consuming)
+do_get_st_yields = False  # Whether to calculate st_yields (can be time-consuming)
 soil_depth = 30  # Soil depth in cm
 climate_out_file = loc_data_dir / "rothc_climate_avg.csv"
 
@@ -35,7 +35,6 @@ ps_amendments = pd.read_csv(fixed_data_dir / "ps_amendments.csv")
 # Step 1: Preprocess cases (fetch/enrich data)
 if do_preprocess_cases:
 
-    # Step 1: fetch/prepare auxiliary datasets and enrich cases
     cases_info_df, climate_df = step1.prepare_cases_df(
         cases_info_raw_df,
         input_dir=input_dir,
@@ -60,8 +59,7 @@ else:
     st_yields_all = pd.read_csv(loc_data_dir / "st_yields_selected.csv")
 
 
-# Step 2: Calculate soil C inputs and initial SOC stocks for each case
-
+# Step 2: Calculate soil C inputs for each case
 carbon_inputs_df = step2.calc_c_inputs(
     cases_treatments_df=cases_treatments_df,
     cases_info_df=cases_info_df,
@@ -72,8 +70,14 @@ carbon_inputs_df = step2.calc_c_inputs(
     ps_trees=ps_trees,
     ps_amendments=ps_amendments
 )
+# carbon_inputs_df.to_csv(proc_data_dir / "carbon_inputs.csv", index=False)
 
+plant_cover_df = step2.plant_cover(cases_treatments_df)
+plant_cover_df.to_csv(proc_data_dir / "plant_cover.csv", index=False)
+
+# Step 3: Calculate initial soil carbon pools for each case
 initial_pools_df = step3.get_rothc_pools(cases_info_df, type="transient")
+# initial_pools_df.to_csv(proc_data_dir / "initial_pools.csv", index=False)
 
 # # Display results
 # print("\n=== Carbon Inputs Summary ===")
@@ -91,7 +95,9 @@ initial_pools_df = step3.get_rothc_pools(cases_info_df, type="transient")
 
 rothc_results = step4.run_rothc(
     cases_treatments_df=cases_treatments_df,
+    cases_info_df=cases_info_df,
     climate_df=climate_df,
+    carbon_inputs_df=carbon_inputs_df,
     initial_pools_df=initial_pools_df,
     soil_depth_cm=soil_depth
 )

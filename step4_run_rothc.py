@@ -1,59 +1,105 @@
+import pandas as pd
 from rothc import rothc
-def run_rothc(cases_treatments_df, climate_df, initial_pools_df, soil_depth_cm=30) :
 
-    # Initialize soil carbon pools
-    DPM = [initial_pools_df.loc[0, 'DPM']]
-    RPM = [initial_pools_df.loc[0, 'RPM']]
-    BIO = [initial_pools_df.loc[0, 'BIO']]
-    HUM = [initial_pools_df.loc[0, 'HUM']]
-    IOM = [initial_pools_df.loc[0, 'IOM']]
-    SOC = [DPM[0] + RPM[0] + BIO[0] + HUM[0] + IOM[0]]
-
-    # Loop through each case and run RothC for control and treatments
+def run_rothc(
+        cases_treatments_df,
+        cases_info_df,
+        climate_df,
+        carbon_inputs_df,
+        initial_pools_df,
+        soil_depth_cm=30
+    ):
+    """
+    Run RothC model for all cases, looping over a single year of averaged climate data.
+    
+    Returns:
+        tuple: (yearly_results_df, monthly_results_df) with case_id and group columns
+    """
+    
+    # Initialize lists to accumulate results across all cases
+    all_years_list = []
+    all_months_list = []
+    
+    # Loop through each case and run RothC for each
     for _, case in cases_treatments_df.iterrows():
 
-        clay = case['rothc_clay_pct']
-        timeFact = 12
+        # Get case information and parameters
+        case_id = case['case']
+        group = case['group']  # control or treatment
+        case_info = cases_info_df[cases_info_df['case'] == case_id].iloc[0]
+        case_climate = climate_df[climate_df['case'] == case_id].reset_index(drop=True)
+        case_c_inputs = carbon_inputs_df[carbon_inputs_df['case'] == case_id].iloc[0]
+
+        # Get start year and duration
+        start_year = 1
+        duration_years = int(case_info['duration_years'])
+        nsteps = duration_years * 12  # Convert years to months
+
+        # Prepare monthly climate data (single year, 12 months)
+        # Ensure we have exactly 12 months of climate data
+        if len(case_climate) != 12:
+            raise ValueError(f"Expected 12 months of climate data for case {case_id}, got {len(case_climate)}")
         
-        # Prepare monthly data
-        monthly = climate_df.copy()
-        monthly['t_FYM_Inp'] = 0.0
-        monthly['t_PC'] = 1
+        monthly = case_climate.copy()
+        monthly['t_FYM_Inp'] = 0.0  # FYM inputs already in C_Inp column
+        monthly['t_PC'] = 1.0  # Assuming full plant cover; adjust as needed
 
-        print( j, DPM[0], RPM[0], BIO[0], HUM[0], IOM[0], SOC[0], Total_Delta)
+        # Initialize soil carbon pools
+        case_pools = initial_pools_df[initial_pools_df['case'] == case_id].iloc[0]
+        DPM = [case_pools['DPM']]
+        RPM = [case_pools['RPM']]
+        BIO = [case_pools['BIO']]
+        HUM = [case_pools['HUM']]
+        IOM = [case_pools['IOM']]
+        SOC = [DPM[0] + RPM[0] + BIO[0] + HUM[0] + IOM[0]]
 
-        year_list = [[1, j+1, DPM[0], RPM[0], BIO[0], HUM[0], IOM[0], SOC[0], Total_Delta[0]]]
+        # Set initial soil water content (deficit) and clay content
+        SWC = [0.0]
+        clay = case_info['rothc_clay_pct']
+        c_inputs = case_c_inputs['c_input_t_ha'] / 12  # Convert annual C inputs to monthly
+        dpm_rpm = case_c_inputs['dpm_rpm_ratio']
 
-        month_list = []        
+        # Store initial state (year 0, January)
+        all_years_list.append([case_id, group, 0, 1, DPM[0], RPM[0], BIO[0], HUM[0], IOM[0], SOC[0]])
 
-        for  i in range(timeFact, nsteps):
-        
-            TEMP = df.t_tmp[i]
-            RAIN = df.t_rain[i]
-            PEVAP =df.t_evap[i]
+        # Run RothC for each month
+        for i in range(nsteps):
+            # Calculate current year and month (1-indexed months: 1=Jan, 12=Dec)
+            current_month = (i % 12) + 1
+            current_year = start_year + (i // 12)
             
-            PC = df.t_PC[i]
-            DPM_RPM = df.t_DPM_RPM[i]
+            # Get climate data for this month (cycling through 12-month climate)
+            climate_idx = i % 12
+            TEMP = monthly.iloc[climate_idx]['t_tmp']
+            RAIN = monthly.iloc[climate_idx]['t_rain']
+            PEVAP = monthly.iloc[climate_idx]['t_evap']
+            PC = 1.0  # Assuming plant cover in all cases for simplicity.
+            FYM_Inp = 0.0  # Amendment inputs already calculated in C_Inp column
             
-            C_Inp = df.t_C_Inp[i]
-            FYM_Inp = df.t_FYM_Inp[i]
+            DPM_RPM = dpm_rpm
+            C_Inp = c_inputs
             depth = soil_depth_cm
             
-            rothc(timeFact, DPM, RPM, BIO, HUM, IOM, SOC, clay, depth, TEMP, RAIN, PEVAP, PC, DPM_RPM, C_Inp, FYM_Inp, SWC, RM_TILL=1.0)
-                
-            Total_Delta = (np.exp(-Total_Rage[0]/8035.0) - 1.0) * 1000.0
+            # Run RothC for this month
+            rothc(12, DPM, RPM, BIO, HUM, IOM, SOC, clay, depth, TEMP, RAIN, PEVAP, 
+                  PC, DPM_RPM, C_Inp, FYM_Inp, SWC, RM_TILL=1.0)
             
-            print(C_Inp, FYM_Inp, TEMP, RAIN, PEVAP, SWC[0],  PC,  DPM[0],RPM[0],BIO[0],HUM[0], IOM[0], SOC[0])
+            # Store monthly results
+            all_months_list.append([case_id, group, current_year, current_month, 
+                                   DPM[0], RPM[0], BIO[0], HUM[0], IOM[0], SOC[0]])
             
-            month_list.insert(i-timeFact, [df.loc[i,"t_year"],df.loc[i,"t_month"], DPM[0],RPM[0],BIO[0],HUM[0], IOM[0], SOC[0], Total_Delta[0]])
-                
-            if(df.t_month[i] == timeFact):
-                timeFact_index = int(i/timeFact)   
-                year_list.insert(timeFact_index, [df.loc[i,"t_year"],df.loc[i,"t_month"], DPM[0],RPM[0],BIO[0],HUM[0], IOM[0], SOC[0], Total_Delta[0]])
-                print( i, DPM, RPM, BIO, HUM, IOM, SOC, Total_Delta)
+            # Store yearly results (at the end of December)
+            if current_month == 12:
+                all_years_list.append([case_id, group, current_year, 12, 
+                                      DPM[0], RPM[0], BIO[0], HUM[0], IOM[0], SOC[0]])
 
-        output_years = pd.DataFrame(year_list, columns=["Year","Month","DPM_t_C_ha","RPM_t_C_ha","BIO_t_C_ha","HUM_t_C_ha","IOM_t_C_ha","SOC_t_C_ha","deltaC"])     
-        output_months = pd.DataFrame(month_list, columns=["Year","Month","DPM_t_C_ha","RPM_t_C_ha","BIO_t_C_ha","HUM_t_C_ha","IOM_t_C_ha","SOC_t_C_ha","deltaC"])
+    # Create output dataframes
+    year_columns = ["case_id", "group", "year", "month", "DPM_t_C_ha", "RPM_t_C_ha", 
+                   "BIO_t_C_ha", "HUM_t_C_ha", "IOM_t_C_ha", "SOC_t_C_ha"]
+    month_columns = ["case_id", "group", "year", "month", "DPM_t_C_ha", "RPM_t_C_ha", 
+                    "BIO_t_C_ha", "HUM_t_C_ha", "IOM_t_C_ha", "SOC_t_C_ha"]
+    
+    output_years = pd.DataFrame(all_years_list, columns=year_columns)
+    output_months = pd.DataFrame(all_months_list, columns=month_columns)
 
-        output_years.to_csv("year_results.csv", index = False)
-        output_months.to_csv("month_results.csv", index = False)
+    return output_years, output_months
