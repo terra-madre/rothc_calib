@@ -159,7 +159,8 @@ def calc_c_herb(
 def calc_c_tree(
     cases_treatments_df,
     ps_trees,
-    ps_management
+    ps_management,
+    tree_agb_modifier=1.0
 ):
     """Calculate carbon inputs from tree crops based on treatments.
     
@@ -167,6 +168,7 @@ def calc_c_tree(
         cases_treatments_df (pd.DataFrame): DataFrame with treatment info per case
         ps_trees (pd.DataFrame): DataFrame with tree species parameters
         ps_management (pd.DataFrame): DataFrame with management parameters
+        tree_agb_modifier (float): Multiplier for tree AGB to account for input uncertainty (default: 1.0)
     
     Returns:
         pd.DataFrame: DataFrame with calculated carbon inputs (case, group, c_input_tree_t_ha)
@@ -190,8 +192,9 @@ def calc_c_tree(
         tree_params = tree_params.iloc[0]
         
         # Get AGB from input data (already provided in t/ha)
-        agb_t_ha = row['tree_agb_t_ha']
-        if pd.isna(agb_t_ha) or agb_t_ha == 0:
+        # Apply tree_agb_modifier to account for input uncertainty
+        agb_t_ha = row['tree_agb_t_ha'] * tree_agb_modifier
+        if pd.isna(row['tree_agb_t_ha']) or row['tree_agb_t_ha'] == 0:
             continue
         
         # Calculate BGB
@@ -286,7 +289,8 @@ def calc_c_inputs(
     ps_management,
     ps_general,
     ps_trees,
-    ps_amendments
+    ps_amendments,
+    tree_agb_modifier=1.0
 ):
     """Calculate total carbon inputs for RothC model with weighted DPM/RPM ratio.
     
@@ -304,6 +308,7 @@ def calc_c_inputs(
         ps_general (pd.DataFrame): DataFrame with general parameters
         ps_trees (pd.DataFrame): DataFrame with tree species parameters
         ps_amendments (pd.DataFrame): DataFrame with amendment parameters
+        tree_agb_modifier (float): Multiplier for tree AGB to account for input uncertainty (default: 1.0)
     
     Returns:
         pd.DataFrame: DataFrame with calculated carbon inputs (case, group, c_input_t_ha, dpm_rpm_ratio)
@@ -322,7 +327,8 @@ def calc_c_inputs(
     c_tree = calc_c_tree(
         cases_treatments_df=cases_treatments_df,
         ps_trees=ps_trees,
-        ps_management=ps_management
+        ps_management=ps_management,
+        tree_agb_modifier=tree_agb_modifier
     )
     
     c_amend = calc_c_amend(
