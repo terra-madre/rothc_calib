@@ -10,7 +10,8 @@ def calc_c_herb(
     st_yields_all,
     ps_herbaceous,
     ps_management,
-    ps_general
+    ps_general,
+    use_covercrop_yield=True
 ):
     """Calculate carbon inputs for RothC model based on treatments and case info.
     
@@ -21,6 +22,7 @@ def calc_c_herb(
         ps_herbaceous (pd.DataFrame): DataFrame with herbaceous plant parameters
         ps_management (pd.DataFrame): DataFrame with management parameters
         ps_general (pd.DataFrame): DataFrame with general parameters
+        use_covercrop_yield (bool): If True, use st_yield for covercrop biomass; if False, use map_to_prod (default: False)
     
     Returns:
         pd.DataFrame: DataFrame with calculated carbon inputs (case, group, c_input_annuals_t_ha, c_input_grass_t_ha)
@@ -49,108 +51,103 @@ def calc_c_herb(
         nuts3 = row['nuts3']
         map_mm = row['map_mm']
         irrigation = row['irrigation']
+        crop_perc_cover = row['crop_perc_cover'] / 100 if pd.notna(row['crop_perc_cover']) else 0
         
         # --- Process main crops (crop1, crop2, crop3) ---
-        crop_cols = ['crop1_name', 'crop2_name', 'crop3_name']
-        crop_perc_cover = row['crop_perc_cover'] / 100 if pd.notna(row['crop_perc_cover']) else 0
         crops_residues = row['crops_residues']
+        mgmt_params_crops = ps_management[ps_management['management'] == crops_residues]
         
-        for crop_col in crop_cols:
-            crop_name = row[crop_col]
-            if pd.isna(crop_name):
-                continue
+        if not mgmt_params_crops.empty:
+            frac_remaining_crops = mgmt_params_crops['frac_remaining'].values[0]
+            
+            for crop_col in ['crop1_name', 'crop2_name', 'crop3_name']:
+                crop_name = row[crop_col]
+                if pd.isna(crop_name):
+                    continue
                 
-            # Get plant parameters
-            crop_params = ps_herbaceous[ps_herbaceous['group_cover'] == crop_name]
-            if crop_params.empty:
-                print(f"Warning: No parameters found for crop '{crop_name}'")
-                continue
-            crop_params = crop_params.iloc[0]
-            
-            # Get yield
-            yield_data = st_yields_all[(st_yields_all['nuts3'] == nuts3) & 
-                                       (st_yields_all['group_name'] == crop_name)]
-            if yield_data.empty:
-                print(f"Warning: No yield data for crop '{crop_name}' in nuts3 '{nuts3}'")
-                continue
-            
-            # Select yield based on irrigation
-            if irrigation:
-                yield_tdm_ha = yield_data['yield_dry_irrigated_t_ha'].values[0]
-            else:
-                yield_tdm_ha = yield_data['yield_dry_rainfed_t_ha'].values[0]
-            
-            if pd.isna(yield_tdm_ha):
-                continue
-            
-            # Get management parameters
-            mgmt_params = ps_management[ps_management['management'] == crops_residues]
-            if mgmt_params.empty:
-                print(f"Warning: No management parameters for '{crops_residues}'")
-                continue
-            frac_remaining = mgmt_params['frac_remaining'].values[0]
-            
-            # Calculate biomass and inputs
-            residues_tdm_ha = yield_tdm_ha * crop_params['residue_yield_ratio (kg/kg)']
-            agb_t_ha = yield_tdm_ha + residues_tdm_ha
-            bgb_t_ha = agb_t_ha * crop_params['r_s_ratio (kg/kg)']
-            
-            agb_input_t_ha = (agb_t_ha - yield_tdm_ha) * frac_remaining
-            bgb_input_t_ha = bgb_t_ha * crop_params['turnover_bg (y-1)']
-            
-            c_input_t_ha = (agb_input_t_ha + bgb_input_t_ha) * crop_params['c_frac (kgC/kgDM)'] * crop_perc_cover
-            total_c_input_annuals += c_input_t_ha
+                # Get parameters and data
+                crop_params = ps_herbaceous[ps_herbaceous['group_cover'] == crop_name]
+                yield_data = st_yields_all[(st_yields_all['nuts3'] == nuts3) & 
+                                           (st_yields_all['group_name'] == crop_name)]
+                
+                # Check if we have all required data
+                if crop_params.empty or yield_data.empty:
+                    continue
+                
+                crop_params = crop_params.iloc[0]
+                yield_tdm_ha = yield_data['yield_dry_irrigated_t_ha' if irrigation else 'yield_dry_rainfed_t_ha'].values[0]
+                
+                if pd.isna(yield_tdm_ha):
+                    continue
+                
+                # Calculate biomass and inputs
+                residues_tdm_ha = yield_tdm_ha * crop_params['residue_yield_ratio (kg/kg)']
+                agb_t_ha = yield_tdm_ha + residues_tdm_ha
+                bgb_t_ha = agb_t_ha * crop_params['r_s_ratio (kg/kg)']
+                
+                agb_input_t_ha = residues_tdm_ha * frac_remaining_crops
+                bgb_input_t_ha = bgb_t_ha * crop_params['turnover_bg (y-1)']
+                
+                c_input_t_ha = (agb_input_t_ha + bgb_input_t_ha) * crop_params['c_frac (kgC/kgDM)'] * crop_perc_cover
+                total_c_input_annuals += c_input_t_ha
         
         # --- Process covercrop ---
         covercrop_name = row['covercrop']
         if pd.notna(covercrop_name):
-            # Get plant parameters
+            covercrop_residues = row['covercrop_residues']
             cc_params = ps_herbaceous[ps_herbaceous['group_cover'] == covercrop_name]
-            if not cc_params.empty:
+            mgmt_params_cc = ps_management[ps_management['management'] == covercrop_residues]
+            
+            # Check if we have all required parameters
+            if not cc_params.empty and not mgmt_params_cc.empty:
                 cc_params = cc_params.iloc[0]
+                frac_remaining = mgmt_params_cc['frac_remaining'].values[0]
+                agb_t_ha = None
                 
-                # Get management parameters
-                covercrop_residues = row['covercrop_residues']
-                mgmt_params = ps_management[ps_management['management'] == covercrop_residues]
-                if not mgmt_params.empty:
-                    frac_remaining = mgmt_params['frac_remaining'].values[0]
-                    
-                    # Calculate biomass using precipitation productivity
+                # Determine aboveground biomass based on method
+                if use_covercrop_yield:
+                    # Method 1: Use st_yield where yield = total biomass
+                    yield_data = st_yields_all[(st_yields_all['nuts3'] == nuts3) & 
+                                               (st_yields_all['group_name'] == covercrop_name)]
+                    if not yield_data.empty:
+                        total_biomass_tdm_ha = yield_data['yield_dry_irrigated_t_ha' if irrigation else 'yield_dry_rainfed_t_ha'].values[0]
+                        if pd.notna(total_biomass_tdm_ha):
+                            agb_t_ha = total_biomass_tdm_ha
+                else:
+                    # Method 2: Use precipitation productivity (map_to_prod)
                     agb_t_ha = map_mm * map_to_prod
+                
+                # Calculate carbon input if we have valid biomass
+                if agb_t_ha is not None:
                     bgb_t_ha = agb_t_ha * cc_params['r_s_ratio (kg/kg)']
-                    
                     agb_input_t_ha = agb_t_ha * frac_remaining
                     bgb_input_t_ha = bgb_t_ha * cc_params['turnover_bg (y-1)']
-                    
                     c_input_t_ha = (agb_input_t_ha + bgb_input_t_ha) * cc_params['c_frac (kgC/kgDM)']
                     total_c_input_annuals += c_input_t_ha
         
         # --- Process grassland ---
         grass_perc_cover = row['grass_perc_cover'] / 100 if pd.notna(row['grass_perc_cover']) else 0
         if grass_perc_cover > 0:
-            # Get parameters for "grassland - permanent grasses or shrubs"
             grass_params = ps_herbaceous[ps_herbaceous['group_cover'] == 'grassland - permanent grasses or shrubs']
-            if not grass_params.empty:
+            mgmt_params_grass = ps_management[ps_management['management'] == 'natural grasses/shrubs with continuous grazing']
+            
+            # Check if we have all required parameters
+            if not grass_params.empty and not mgmt_params_grass.empty:
                 grass_params = grass_params.iloc[0]
+                frac_remaining = mgmt_params_grass['frac_remaining'].values[0]
+                prod_modifier = mgmt_params_grass['prod_modifier'].values[0]
                 
-                # Get management parameters for natural grassland with continuous grazing
-                grass_mgmt = 'natural grasses/shrubs with continuous grazing'
-                mgmt_params = ps_management[ps_management['management'] == grass_mgmt]
-                if not mgmt_params.empty:
-                    frac_remaining = mgmt_params['frac_remaining'].values[0]
-                    prod_modifier = mgmt_params['prod_modifier'].values[0]
-                    
-                    # Calculate biomass using precipitation productivity with modifier
-                    agb_t_ha = map_mm * map_to_prod * prod_modifier
-                    bgb_t_ha = agb_t_ha * grass_params['r_s_ratio (kg/kg)']
-                    
-                    agb_input_t_ha = agb_t_ha * frac_remaining
-                    bgb_input_t_ha = bgb_t_ha * grass_params['turnover_bg (y-1)']
-                    
-                    c_input_t_ha = (agb_input_t_ha + bgb_input_t_ha) * grass_params['c_frac (kgC/kgDM)'] * grass_perc_cover
-                    total_c_input_grass += c_input_t_ha
+                # Calculate biomass using precipitation productivity with modifier
+                agb_t_ha = map_mm * map_to_prod * prod_modifier
+                bgb_t_ha = agb_t_ha * grass_params['r_s_ratio (kg/kg)']
+                
+                agb_input_t_ha = agb_t_ha * frac_remaining
+                bgb_input_t_ha = bgb_t_ha * grass_params['turnover_bg (y-1)']
+                
+                c_input_t_ha = (agb_input_t_ha + bgb_input_t_ha) * grass_params['c_frac (kgC/kgDM)'] * grass_perc_cover
+                total_c_input_grass += c_input_t_ha
         
-        # Store results - separate annuals and grass
+        # Store results
         df.at[idx, 'c_input_annuals_t_ha'] = round(total_c_input_annuals, 2)
         df.at[idx, 'c_input_grass_t_ha'] = round(total_c_input_grass, 2)
     
@@ -293,7 +290,8 @@ def calc_c_inputs(
     ps_general,
     ps_trees,
     ps_amendments,
-    tree_agb_modifier=1.0
+    tree_agb_modifier=1.0,
+    use_covercrop_yield=False
 ):
     """Calculate total carbon inputs for RothC model with weighted DPM/RPM ratio.
     
@@ -312,6 +310,7 @@ def calc_c_inputs(
         ps_trees (pd.DataFrame): DataFrame with tree species parameters
         ps_amendments (pd.DataFrame): DataFrame with amendment parameters
         tree_agb_modifier (float): Multiplier for tree AGB to account for input uncertainty (default: 1.0)
+        use_covercrop_yield (bool): If True, use st_yield for covercrop biomass; if False, use map_to_prod (default: False)
     
     Returns:
         pd.DataFrame: DataFrame with calculated carbon inputs (case, group, c_input_t_ha, dpm_rpm_ratio)
@@ -324,7 +323,8 @@ def calc_c_inputs(
         st_yields_all=st_yields_all,
         ps_herbaceous=ps_herbaceous,
         ps_management=ps_management,
-        ps_general=ps_general
+        ps_general=ps_general,
+        use_covercrop_yield=use_covercrop_yield
     )
     
     c_tree = calc_c_tree(
