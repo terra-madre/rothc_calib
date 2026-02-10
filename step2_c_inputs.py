@@ -23,7 +23,7 @@ def calc_c_herb(
         ps_general (pd.DataFrame): DataFrame with general parameters
     
     Returns:
-        pd.DataFrame: DataFrame with calculated carbon inputs (case, group, c_input_herbaceous_t_ha)
+        pd.DataFrame: DataFrame with calculated carbon inputs (case, group, c_input_annuals_t_ha, c_input_grass_t_ha)
     """
     
     # Merge with cases_info to get nuts3 and map_mm
@@ -36,12 +36,14 @@ def calc_c_herb(
     # Get map_to_prod coefficient from ps_general
     map_to_prod = ps_general[ps_general['name'] == 'map_to_prod']['value'].values[0]
     
-    # Initialize result column
-    df['c_input_herbaceous_t_ha'] = 0.0
+    # Initialize result columns - separate annuals and grass
+    df['c_input_annuals_t_ha'] = 0.0
+    df['c_input_grass_t_ha'] = 0.0
     
     # Process each row
     for idx, row in df.iterrows():
-        total_c_input = 0.0
+        total_c_input_annuals = 0.0
+        total_c_input_grass = 0.0
         
         # Get case info
         nuts3 = row['nuts3']
@@ -97,7 +99,7 @@ def calc_c_herb(
             bgb_input_t_ha = bgb_t_ha * crop_params['turnover_bg (y-1)']
             
             c_input_t_ha = (agb_input_t_ha + bgb_input_t_ha) * crop_params['c_frac (kgC/kgDM)'] * crop_perc_cover
-            total_c_input += c_input_t_ha
+            total_c_input_annuals += c_input_t_ha
         
         # --- Process covercrop ---
         covercrop_name = row['covercrop']
@@ -121,7 +123,7 @@ def calc_c_herb(
                     bgb_input_t_ha = bgb_t_ha * cc_params['turnover_bg (y-1)']
                     
                     c_input_t_ha = (agb_input_t_ha + bgb_input_t_ha) * cc_params['c_frac (kgC/kgDM)']
-                    total_c_input += c_input_t_ha
+                    total_c_input_annuals += c_input_t_ha
         
         # --- Process grassland ---
         grass_perc_cover = row['grass_perc_cover'] / 100 if pd.notna(row['grass_perc_cover']) else 0
@@ -146,13 +148,14 @@ def calc_c_herb(
                     bgb_input_t_ha = bgb_t_ha * grass_params['turnover_bg (y-1)']
                     
                     c_input_t_ha = (agb_input_t_ha + bgb_input_t_ha) * grass_params['c_frac (kgC/kgDM)'] * grass_perc_cover
-                    total_c_input += c_input_t_ha
+                    total_c_input_grass += c_input_t_ha
         
-        # Store result
-        df.at[idx, 'c_input_herbaceous_t_ha'] = round(total_c_input, 2)
+        # Store results - separate annuals and grass
+        df.at[idx, 'c_input_annuals_t_ha'] = round(total_c_input_annuals, 2)
+        df.at[idx, 'c_input_grass_t_ha'] = round(total_c_input_grass, 2)
     
     # Return result with only needed columns
-    result = df[['subcase', 'c_input_herbaceous_t_ha']].copy()
+    result = df[['subcase', 'c_input_annuals_t_ha', 'c_input_grass_t_ha']].copy()
     return result
 
 
@@ -343,6 +346,7 @@ def calc_c_inputs(
     # Fill NaN with 0
     result['c_input_tree_t_ha'] = result['c_input_tree_t_ha'].fillna(0)
     result['c_input_amend_t_ha'] = result['c_input_amend_t_ha'].fillna(0)
+    result['c_input_grass_t_ha'] = result['c_input_grass_t_ha'].fillna(0)
     
     # Get DPM/RPM ratios from ps_general
     dr_ratio_annuals = ps_general[ps_general['name'] == 'dr_ratio_annuals']['value'].values[0]
@@ -350,15 +354,17 @@ def calc_c_inputs(
     dr_ratio_amend = ps_general[ps_general['name'] == 'dr_ratio_amend']['value'].values[0]
     
     # Calculate weighted DPM/RPM ratio
-    # DPM/RPM = (C_herb * dr_annuals + C_tree * dr_treegrass + C_amend * dr_amend) / C_total
+    # DPM/RPM = (C_annuals * dr_annuals + C_grass * dr_treegrass + C_tree * dr_treegrass + C_amend * dr_amend) / C_total
     result['c_input_t_ha'] = (
-        result['c_input_herbaceous_t_ha'] + 
+        result['c_input_annuals_t_ha'] + 
+        result['c_input_grass_t_ha'] + 
         result['c_input_tree_t_ha'] + 
         result['c_input_amend_t_ha']
     )
     
     result['dpm_rpm_ratio'] = (
-        (result['c_input_herbaceous_t_ha'] * dr_ratio_annuals +
+        (result['c_input_annuals_t_ha'] * dr_ratio_annuals +
+         result['c_input_grass_t_ha'] * dr_ratio_treegrass +
          result['c_input_tree_t_ha'] * dr_ratio_treegrass +
          result['c_input_amend_t_ha'] * dr_ratio_amend) /
         result['c_input_t_ha']
@@ -369,7 +375,8 @@ def calc_c_inputs(
     result['dpm_rpm_ratio'] = result['dpm_rpm_ratio'].round(3)
     
     # Return final result
-    result = result[['subcase', 'c_input_herbaceous_t_ha', 'c_input_tree_t_ha', 
-                     'c_input_amend_t_ha', 'c_input_t_ha', 'dpm_rpm_ratio']].copy()
+    result = result[['subcase', 'c_input_annuals_t_ha', 'c_input_grass_t_ha', 
+                     'c_input_tree_t_ha', 'c_input_amend_t_ha', 
+                     'c_input_t_ha', 'dpm_rpm_ratio']].copy()
     
     return result
