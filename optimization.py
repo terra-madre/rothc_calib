@@ -45,7 +45,7 @@ PARAM_CONFIG = {
     },
     'map_to_prod': {
         'default': 0.006,
-        'bounds': (0.003, 0.012),
+        'bounds': (0.004, 0.08),
         'source': 'ps_general',
         'description': 'Productivity from MAP (t/mm)'
     },
