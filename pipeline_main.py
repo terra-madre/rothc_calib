@@ -7,7 +7,7 @@ import preprocess as step1
 import calc_carbon_inputs as step2
 import calc_initial_pools as step3
 import calc_plant_cover as step4
-import calc_soc_deltas as step5
+import run_rothc_model as step5
 import calc_soc_deltas as step6
 
 # configuration and paths

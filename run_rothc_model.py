@@ -1,5 +1,5 @@
 import pandas as pd
-from rothc_model import rothc_model as rothc
+from rothc_model import rothc
 
 def run_rothc(
         cases_treatments_df,
