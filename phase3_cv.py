@@ -63,9 +63,9 @@ def run_phase3_cv(output_dir='../outputs'):
     
     # Define parameter sets to test
     param_sets = {
-        'Tier1_Core': ['dr_ratio_annuals', 'map_to_prod', 'tree_agb_modifier'],
+        'Tier1_Core': ['dr_ratio_annuals', 'map_to_prod'],
         'Tier1_All': ['dr_ratio_annuals', 'dr_ratio_treegrass', 'map_to_prod', 
-                      'tree_agb_modifier', 'covercrop_rs_ratio'],
+                      'covercrop_rs_ratio'],
         'Set_A_Annuals': ['dr_ratio_annuals', 'map_to_prod', 'covercrop_rs_ratio'],
     }
     
@@ -211,7 +211,7 @@ def run_phase3_with_differential_evolution(output_dir='../outputs'):
     print(f"Baseline RMSE: {baseline['rmse']:.4f}\n")
     
     # Test Tier1_Core (best from Phase 2)
-    param_names = ['dr_ratio_annuals', 'map_to_prod', 'tree_agb_modifier']
+    param_names = ['dr_ratio_annuals', 'map_to_prod']
     
     print(f"Parameters: {param_names}")
     print("Method: Differential Evolution")

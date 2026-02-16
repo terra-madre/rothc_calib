@@ -14,6 +14,9 @@ def prepare_cases_df(
     nuts_version='2024'
 ):
     """Enrich the case table with optional preprocessing steps."""
+
+    cases_info_df = prepare_variables(cases_info_df)
+
     cases_info_df = fetch_soil_data(cases_info_df, loc_data_dir, soil_depth=soil_depth_cm)
 
     cases_info_df, climate_df = fetch_climate_data(
@@ -41,12 +44,21 @@ def prepare_cases_df(
     return cases_info_df, climate_df
 
 
+def prepare_variables(cases_info_df):
+    """Prepare/clean variables in the cases_info_df as needed."""
+    # Create 'lonlat' column with format: lon{rounded}_lat{rounded}
+    # Example: longitude=12.3456, latitude=45.6789 -> "lon12.35_lat45.68"
+    cases_info_df['lonlat'] = cases_info_df.apply(
+        lambda row: f"lon{round(row['longitude'], 2)}_lat{round(row['latitude'], 2)}", axis=1
+    )
+    return cases_info_df
+
+
 def fetch_soil_data(cases_info_df, loc_data_dir, soil_depth=30, out_csv_path=None):
     cases_info_df['grids_clay_pct'] = None
-    cases_info_df['bulk_density_g_cm3'] = None
+    cases_info_df['grids_bd_g_cm3'] = None
     cases_info_df['grids_soc30_t_ha'] = None
     cases_info_df['rothc_clay_pct'] = None
-    cases_info_df['rothc_soc30_t_ha'] = None
     for index, row in cases_info_df.iterrows():
         case_id = row['case']
         print(f"Fetching soil data for case: {case_id}")
@@ -61,7 +73,7 @@ def fetch_soil_data(cases_info_df, loc_data_dir, soil_depth=30, out_csv_path=Non
         # cases_info_df.at[index, 'rothc_soc_pct'] = row['soc_pct'] if pd.notnull(row['soc_pct']) else grid_soc # Implement eventually when soc_pct is added to data_clean.csv
         cases_info_df.at[index, 'grids_clay_pct'] = grid_clay
         cases_info_df.at[index, 'grids_soc30_t_ha'] = grid_soc
-        cases_info_df.at[index, 'bulk_density_g_cm3'] = grid_bulkdensity
+        cases_info_df.at[index, 'grids_bd_g_cm3'] = grid_bulkdensity
 
     if out_csv_path is not None:
         cases_info_df.to_csv(out_csv_path, index=False)
@@ -129,7 +141,7 @@ def add_ipcc_climate_zone(
     out_col='ipcc_climate_zone'
 ):
     """Add IPCC climate zone to each case using a raster lookup."""
-    climate_zones_file = Path(input_dir) / climate_zones_tif
+    climate_zones_file = Path(input_dir) / "geo_files" / climate_zones_tif
 
     cases_info_df[out_col] = ''
     for index, row in cases_info_df.iterrows():
@@ -234,7 +246,7 @@ def load_nuts3_regions(
 ):
     """Load NUTS3 polygons as a GeoDataFrame (cached on disk).
 
-    - If `nuts_geojson_path` is not provided, caches under `<input_dir>/nuts_regions/`.
+    - If `nuts_geojson_path` is not provided, caches under `<input_dir>/geo_files/`.
     - CRS is normalized to EPSG:4326 (WGS84).
     """
     import geopandas as gpd
@@ -244,7 +256,7 @@ def load_nuts3_regions(
         raise ValueError(f"Invalid nuts_version '{nuts_version}'. Must be '2024' or '2021'.")
 
     if nuts_geojson_path is None:
-        cache_dir = Path(input_dir) / 'nuts_regions'
+        cache_dir = Path(input_dir) / 'geo_files'
         cache_dir.mkdir(parents=True, exist_ok=True)
         nuts_geojson_path = cache_dir / f'NUTS_RG_03M_{nuts_version}_4326_LEVL_3.geojson'
     else:
@@ -588,7 +600,7 @@ def get_soilgrids_data(lat, lon, input_dir, location):
         pd.DataFrame: DataFrame containing soil properties with columns:
             - depth_cm: depth interval as string
             - soil_organic_carbon_g_kg: SOC in g/kg
-            - bulk_density_g_cm3: bulk density in g/cm³
+            - grids_bd_g_cm3: bulk density in g/cm³
             - clay_fraction_perc: clay content in %
             - silt_fraction_perc: silt content in %
             - sand_fraction_perc: sand content in %
@@ -726,7 +738,7 @@ def get_soilgrids_data(lat, lon, input_dir, location):
                 if prop_name == "soc":
                     record["soil_organic_carbon_g_kg"] = round(value / 10, 2)
                 elif prop_name == "bdod":
-                    record["bulk_density_g_cm3"] = round(value / 100, 3)
+                    record["grids_bd_g_cm3"] = round(value / 100, 3)
                 elif prop_name == "clay":
                     record["clay_fraction_perc"] = round(value / 10, 1)
                 elif prop_name == "silt":
@@ -745,7 +757,7 @@ def get_soilgrids_data(lat, lon, input_dir, location):
     
     # Verify we got all expected columns
     expected_cols = [
-        'depth_cm', 'soil_organic_carbon_g_kg', 'bulk_density_g_cm3',
+        'depth_cm', 'soil_organic_carbon_g_kg', 'grids_bd_g_cm3',
         'clay_fraction_perc', 'silt_fraction_perc', 'sand_fraction_perc'
     ]
     
@@ -807,7 +819,7 @@ def get_soilgrids_values(farm_soil, soil_depth = 30):
     # Get the weighted average clay percentage across soil depths 
     clay_perc = (farm_soil['clay_fraction_perc'] * farm_soil['depth_width']).sum() / farm_soil['depth_width'].sum()
     # Get the weighted average bulk density across soil depths
-    bulk_density = (farm_soil['bulk_density_g_cm3'] * farm_soil['depth_width']).sum() / farm_soil['depth_width'].sum()
+    bulk_density = (farm_soil['grids_bd_g_cm3'] * farm_soil['depth_width']).sum() / farm_soil['depth_width'].sum()
     # Calculate total soil organic carbon in t/ha
     # SOC (g/kg) * depth (cm) * bulk_density (g/cm³=t/m3) * 0.1 = t/ha
     # Explanation: t/t (soc g/kg/ 1000) * m (depth cm / 100) * (area) 10000 m2 * t/m3 (bulk_density) → × 0.1 converts to t/ha

@@ -49,12 +49,6 @@ PARAM_CONFIG = {
         'source': 'ps_general',
         'description': 'Productivity from MAP (t/mm)'
     },
-    'tree_agb_modifier': {
-        'default': 1.0,
-        'bounds': (0.8, 1.2),
-        'source': 'custom',
-        'description': 'Tree biomass uncertainty scaling (±20%)'
-    },
     'covercrop_rs_ratio': {
         'default': 0.47,
         'bounds': (0.3, 1.0),
@@ -366,9 +360,6 @@ def objective(param_values, param_names, data, case_subset=None, return_details=
         subcases = cases_treatments['subcase'].unique()
         plant_cover_df = plant_cover_df[plant_cover_df['subcase'].isin(subcases)].copy()
     
-    # Get tree_agb_modifier (custom parameter not in CSVs)
-    tree_agb_modifier = params.get('tree_agb_modifier', 1.0)
-    
     # Step 2: Calculate C inputs
     carbon_inputs_df = step2.calc_c_inputs(
         cases_treatments_df=cases_treatments,
@@ -378,8 +369,7 @@ def objective(param_values, param_names, data, case_subset=None, return_details=
         ps_management=ps_management,
         ps_general=ps_general,
         ps_trees=ps_trees,
-        ps_amendments=data['ps_amendments'],
-        tree_agb_modifier=tree_agb_modifier
+        ps_amendments=data['ps_amendments']
     )
     
     # Step 5: Run RothC
@@ -624,7 +614,7 @@ def print_param_config():
     print("Available parameters for calibration:\n")
     for tier, tier_params in [
         ('Tier 1 (High Priority)', ['dr_ratio_annuals', 'dr_ratio_treegrass', 'map_to_prod', 
-                                     'tree_agb_modifier', 'covercrop_rs_ratio']),
+                                    'covercrop_rs_ratio']),
         ('Tier 2 (Medium Priority)', ['grass_rs_ratio', 'tree_fine_root_ratio', 'tree_turnover_ag',
                                        'dr_ratio_amend', 'grass_prod_modifier']),
         ('Tier 3 (Lower Priority)', ['plant_cover_modifier', 'residue_frac_remaining'])

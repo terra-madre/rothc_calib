@@ -212,11 +212,11 @@ def run_phase2_tests():
     
     # Parameter sets to test
     param_sets = {
-        'Tier1_Core': ['dr_ratio_annuals', 'map_to_prod', 'tree_agb_modifier'],
+        'Tier1_Core': ['dr_ratio_annuals', 'map_to_prod'],
         'Set_A_Annuals': ['dr_ratio_annuals', 'map_to_prod', 'covercrop_rs_ratio'],
-        'Set_B_Trees': ['dr_ratio_treegrass', 'tree_agb_modifier', 'tree_fine_root_ratio'],
+        'Set_B_Trees': ['dr_ratio_treegrass', 'tree_fine_root_ratio'],
         'Tier1_All': ['dr_ratio_annuals', 'dr_ratio_treegrass', 'map_to_prod', 
-                      'covercrop_rs_ratio', 'tree_agb_modifier'],
+                      'covercrop_rs_ratio'],
     }
     
     # Benchmark

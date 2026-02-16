@@ -22,8 +22,8 @@ fixed_data_dir.mkdir(parents=True, exist_ok=True)
 output_dir = repo_root / "outputs"
 output_dir.mkdir(parents=True, exist_ok=True)
 
-do_preprocess_cases = False  # Whether to run the preprocessing step (fetching/enriching data for cases)
-do_get_st_yields = False  # Whether to calculate st_yields (can be time-consuming)
+do_preprocess_cases = True  # Whether to run the preprocessing step (fetching/enriching data for cases)
+do_get_st_yields = True  # Whether to calculate st_yields (can be time-consuming)
 soil_depth = 30  # Soil depth in cm
 climate_out_file = loc_data_dir / "rothc_climate_avg.csv"
 

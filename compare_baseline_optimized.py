@@ -43,7 +43,7 @@ def main():
     
     # Baseline (default parameters)
     print("\n[1/2] Computing baseline predictions...")
-    param_names = ['dr_ratio_annuals', 'map_to_prod', 'tree_agb_modifier']
+    param_names = ['dr_ratio_annuals', 'map_to_prod']
     baseline_values = [PARAM_CONFIG[p]['default'] for p in param_names]
     baseline_pred = get_predictions(baseline_values, param_names, data)
     baseline_pred = baseline_pred.rename(columns={'predicted': 'pred_baseline'})
