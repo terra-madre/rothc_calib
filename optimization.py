@@ -18,11 +18,11 @@ from scipy.optimize import minimize, differential_evolution
 from sklearn.model_selection import train_test_split, StratifiedKFold
 
 # Import model steps
-import step2_c_inputs as step2
-import step3_c_initial as step3
-import step4_plant_cover as step4
-import step5_run_rothc as step5
-import step6_calc_deltas as step6
+import calc_carbon_inputs as step2
+import calc_initial_pools as step3
+import calc_plant_cover as step4
+import run_rothc_model as step5
+import calc_soc_deltas as step6
 
 
 # =============================================================================

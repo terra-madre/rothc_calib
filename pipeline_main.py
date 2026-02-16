@@ -3,12 +3,12 @@
 # Import necessary modules
 from pathlib import Path
 import pandas as pd
-import step1_preprocess as step1
-import step2_c_inputs as step2
-import step3_c_initial as step3
-import step4_plant_cover as step4
-import step5_run_rothc as step5
-import step6_calc_deltas as step6
+import preprocess as step1
+import calc_carbon_inputs as step2
+import calc_initial_pools as step3
+import calc_plant_cover as step4
+import calc_soc_deltas as step5
+import calc_soc_deltas as step6
 
 # configuration and paths
 repo_root = Path(__file__).resolve().parents[1]
