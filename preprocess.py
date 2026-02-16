@@ -46,11 +46,20 @@ def prepare_cases_df(
 
 def prepare_variables(cases_info_df):
     """Prepare/clean variables in the cases_info_df as needed."""
+    
     # Create 'lonlat' column with format: lon{rounded}_lat{rounded}
     # Example: longitude=12.3456, latitude=45.6789 -> "lon12.35_lat45.68"
     cases_info_df['lonlat'] = cases_info_df.apply(
         lambda row: f"lon{round(row['longitude'], 2)}_lat{round(row['latitude'], 2)}", axis=1
     )
+    
+    # Recode land_use values to match expected categories
+    land_use_mapping = {
+        'ANNUAL': 'annuals',
+        'PERENNIAL': 'trees'
+    }
+    cases_info_df['land_use'] = cases_info_df['land_use'].map(land_use_mapping)
+
     return cases_info_df
 
 
@@ -59,21 +68,23 @@ def fetch_soil_data(cases_info_df, loc_data_dir, soil_depth=30, out_csv_path=Non
     cases_info_df['grids_bd_g_cm3'] = None
     cases_info_df['grids_soc30_t_ha'] = None
     cases_info_df['rothc_clay_pct'] = None
+
     for index, row in cases_info_df.iterrows():
         case_id = row['case']
         print(f"Fetching soil data for case: {case_id}")
         lat = row['latitude']
         lon = row['longitude']
         location = row['lonlat']
+
         # ------- Get and prepare location soil data --------
         farm_soil_grids = get_soilgrids_data(lat=lat, lon=lon, input_dir=loc_data_dir, location=location)
         grid_clay, grid_soc, grid_bulkdensity = get_soilgrids_values(farm_soil_grids, soil_depth=soil_depth)
-        # Set value of row['rothc_clay_pct'] to row['clay_pct'] if not null, else to grid_clay
-        cases_info_df.at[index, 'rothc_clay_pct'] = row['clay_pct'] if pd.notnull(row['clay_pct']) else grid_clay
-        # cases_info_df.at[index, 'rothc_soc_pct'] = row['soc_pct'] if pd.notnull(row['soc_pct']) else grid_soc # Implement eventually when soc_pct is added to data_clean.csv
         cases_info_df.at[index, 'grids_clay_pct'] = grid_clay
         cases_info_df.at[index, 'grids_soc30_t_ha'] = grid_soc
         cases_info_df.at[index, 'grids_bd_g_cm3'] = grid_bulkdensity
+
+        # Set value of row['rothc_clay_pct'] to row['clay_pct'] if not null, else to grid_clay
+        cases_info_df.at[index, 'rothc_clay_pct'] = row['clay_pct'] if pd.notnull(row['clay_pct']) else grid_clay
 
     if out_csv_path is not None:
         cases_info_df.to_csv(out_csv_path, index=False)
@@ -196,7 +207,7 @@ def normalize_soc_to_depth(
     delta_soc_col='delta_soc_t_ha_y',
     sampling_depth_col='sampling_depth_cm',
     out_soc30_col='soc30_t_ha',
-    out_delta_soc30_col='delta_soc30_tC_ha_y',
+    out_delta_soc30_col='delta_soc30_t_ha_y',
 ):
     """Normalize SOC and delta-SOC to a fixed soil depth (simple proportional scaling)."""
     required = {soc_col, sampling_depth_col}
@@ -219,7 +230,7 @@ def normalize_soc_to_depth(
 def set_rothc_soc30(
     cases_info_df,
     out_col='rothc_soc30_t_ha',
-    prefer_cols=('soc30_t_ha', 'grids_soc30_t_ha', 'medinet_soc30_t_ha'),
+    prefer_cols=('soc30_t_ha', 'medinet_soc30_t_ha', 'grids_soc30_t_ha'),
 ):
     """Choose a final SOC@30cm input for RothC using a preference order."""
     if not prefer_cols:
@@ -837,6 +848,24 @@ def get_st_yields(cases_info_df, fixed_data_dir, loc_data_dir):
     """Get yields for each case based on location info."""
 
     st_yields = pd.read_csv(fixed_data_dir / "st_yields.csv")
+
+    # Fill missing values with 0 for calculating area-weighted yields
+    yield_cols = ['yield_dry_rainfed_t_ha', 'yield_dry_irrigated_t_ha', 'area_rainfed_ha', 'area_irrigated_ha']
+    st_yields[yield_cols] = st_yields[yield_cols].fillna(0)
+
+    # Calculate area-weighted yields (needed for historical data)
+    st_yields['yield_dry_weighted_t_ha'] = (
+        (st_yields['yield_dry_rainfed_t_ha'] * st_yields['area_rainfed_ha'] +
+        st_yields['yield_dry_irrigated_t_ha'] * st_yields['area_irrigated_ha']) /
+        (st_yields['area_rainfed_ha'] + st_yields['area_irrigated_ha'])
+    ).where((st_yields['area_rainfed_ha'] + st_yields['area_irrigated_ha']) > 0, 0).round(2)
+
+    # Set 0 values in yield_cols back to missing
+    st_yields[yield_cols] = st_yields[yield_cols].replace(0, pd.NA)
+
+    # Drop rows with missing or zero yield values (apply once to entire dataset)
+    st_yields = st_yields.dropna(subset=['yield_dry_rainfed_t_ha', 'yield_dry_irrigated_t_ha'], how='all')
+    st_yields = st_yields[~((st_yields['yield_dry_rainfed_t_ha'] == 0) & (st_yields['yield_dry_irrigated_t_ha'] == 0))]
     
     all_st_yields_selected = []
 
@@ -848,35 +877,11 @@ def get_st_yields(cases_info_df, fixed_data_dir, loc_data_dir):
         nuts1 = nuts3[:3]  # Major socio-economic regions
         nuts2 = nuts3[:4]  # Basic regions for regional policies
 
-        # Fill missing values with 0 for calculating area-weighted yields
-        yield_cols = ['yield_dry_rainfed_t_ha', 'yield_dry_irrigated_t_ha', 'area_rainfed_ha', 'area_irrigated_ha']
-        st_yields[yield_cols] = st_yields[yield_cols].fillna(0)
-
-        # Calculate area-weighted yields (needed for historical data)
-        st_yields['yield_dry_weighted_t_ha'] = (
-            (st_yields['yield_dry_rainfed_t_ha'] * st_yields['area_rainfed_ha'] +
-            st_yields['yield_dry_irrigated_t_ha'] * st_yields['area_irrigated_ha']) /
-            (st_yields['area_rainfed_ha'] + st_yields['area_irrigated_ha'])
-        ).where((st_yields['area_rainfed_ha'] + st_yields['area_irrigated_ha']) > 0, 0).round(2)
-
-        # Set 0 values in yield_cols back to missing
-        st_yields[yield_cols] = st_yields[yield_cols].replace(0, pd.NA)
-
         # Get yields at each NUTS level
         st_yields_nuts3 = st_yields[st_yields['nuts_code'] == nuts3][['group_name', 'yield_dry_rainfed_t_ha', 'yield_dry_irrigated_t_ha', 'yield_dry_weighted_t_ha']].copy()
         st_yields_nuts2 = st_yields[st_yields['nuts_code'] == nuts2][['group_name', 'yield_dry_rainfed_t_ha', 'yield_dry_irrigated_t_ha', 'yield_dry_weighted_t_ha']].copy()
         st_yields_nuts1 = st_yields[st_yields['nuts_code'] == nuts1][['group_name', 'yield_dry_rainfed_t_ha', 'yield_dry_irrigated_t_ha', 'yield_dry_weighted_t_ha']].copy()
         st_yields_nuts0 = st_yields[st_yields['nuts_code'] == nuts0][['group_name', 'yield_dry_rainfed_t_ha', 'yield_dry_irrigated_t_ha', 'yield_dry_weighted_t_ha']].copy()
-
-        # Drop rows with missing or zero yield values
-        st_yields_nuts3 = st_yields_nuts3.dropna(subset=['yield_dry_rainfed_t_ha', 'yield_dry_irrigated_t_ha'], how='all')
-        st_yields_nuts3 = st_yields_nuts3[~((st_yields_nuts3['yield_dry_rainfed_t_ha'] == 0) & (st_yields_nuts3['yield_dry_irrigated_t_ha'] == 0))]
-        st_yields_nuts2 = st_yields_nuts2.dropna(subset=['yield_dry_rainfed_t_ha', 'yield_dry_irrigated_t_ha'], how='all')
-        st_yields_nuts2 = st_yields_nuts2[~((st_yields_nuts2['yield_dry_rainfed_t_ha'] == 0) & (st_yields_nuts2['yield_dry_irrigated_t_ha'] == 0))]
-        st_yields_nuts1 = st_yields_nuts1.dropna(subset=['yield_dry_rainfed_t_ha', 'yield_dry_irrigated_t_ha'], how='all')
-        st_yields_nuts1 = st_yields_nuts1[~((st_yields_nuts1['yield_dry_rainfed_t_ha'] == 0) & (st_yields_nuts1['yield_dry_irrigated_t_ha'] == 0))]
-        st_yields_nuts0 = st_yields_nuts0.dropna(subset=['yield_dry_rainfed_t_ha', 'yield_dry_irrigated_t_ha'], how='all')
-        st_yields_nuts0 = st_yields_nuts0[~((st_yields_nuts0['yield_dry_rainfed_t_ha'] == 0) & (st_yields_nuts0['yield_dry_irrigated_t_ha'] == 0))]
         
         # Assign priority to each level (higher number = higher priority/more specific)
         st_yields_nuts3['yield_nuts_level'] = 3
