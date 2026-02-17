@@ -221,12 +221,7 @@ def apply_param_updates(params, data):
             ps_general = update_param_df(ps_general, name, value)
             
         elif source == 'ps_herbaceous':
-            if name == 'covercrop_rs_ratio':
-                for cc_type in COVER_CROP_TYPES:
-                    ps_herbaceous = update_herbaceous_param(
-                        ps_herbaceous, cc_type, 'r_s_ratio (kg/kg)', value
-                    )
-            elif name == 'grass_rs_ratio':
+            if name == 'grass_rs_ratio':
                 ps_herbaceous = update_herbaceous_param(
                     ps_herbaceous, 'grassland - permanent grasses or shrubs', 
                     'r_s_ratio (kg/kg)', value
@@ -239,19 +234,16 @@ def apply_param_updates(params, data):
                 ps_trees = update_tree_param(ps_trees, 'turnover_ag (y-1)', value)
                 
         elif source == 'ps_management':
-            if name == 'grass_prod_modifier':
-                # Update productivity modifier for grassland management types
-                for mgmt in ['natural grasses/shrubs with continuous grazing',
-                            'natural grasses/shrubs with planned/rotational grazing']:
-                    ps_management = update_management_param(
-                        ps_management, mgmt, 'prod_modifier', value
-                    )
-            elif name == 'residue_frac_remaining':
-                # Update for conservation residue management
+            if name == 'residue_frac_remaining':
+                # Only annuals (crops 1-6) and cover crops can take this
+                # management type, so this parameter only affects annual groups
                 ps_management = update_management_param(
                     ps_management, 'crop residues not removed (not grazed)', 
                     'frac_remaining', value
                 )
+        
+        # 'rothc' source params (e.g. plant_cover_modifier) are handled
+        # directly in the objective function when calling run_rothc
     
     return {
         'ps_general': ps_general,
@@ -373,6 +365,9 @@ def objective(param_values, param_names, data, case_subset=None, return_details=
         ps_amendments=data['ps_amendments']
     )
     
+    # Get plant_cover_modifier if being optimized (default 0.6)
+    plant_cover_modifier = params.get('plant_cover_modifier', 0.6)
+    
     # Step 5: Run RothC
     yearly_results, _ = step5.run_rothc(
         cases_treatments_df=cases_treatments,
@@ -381,7 +376,8 @@ def objective(param_values, param_names, data, case_subset=None, return_details=
         carbon_inputs_df=carbon_inputs_df,
         initial_pools_df=initial_pools_df,
         plant_cover_df=plant_cover_df,
-        soil_depth_cm=data['soil_depth_cm']
+        soil_depth_cm=data['soil_depth_cm'],
+        plant_cover_modifier=plant_cover_modifier
     )
     
     # Step 6: Calculate deltas
@@ -467,19 +463,20 @@ def run_optimization(param_names, data, case_subset=None, method=None,
             args=(param_names, data, case_subset),
             maxiter=maxiter,
             popsize=popsize,
-            seed=OPTIM_SETTINGS.get('seed', 42),
+            seed=OPTIM_SETTINGS.get('seed', 42), # type: ignore
             disp=verbose,
             workers=1,
             callback=lambda xk, convergence: callback(xk)
         )
     else:
+        eps = OPTIM_SETTINGS.get('eps', 1e-8)
         result = minimize(
             objective,
             x0,
             args=(param_names, data, case_subset),
             method=method,
             bounds=bounds,
-            options={'maxiter': maxiter, 'disp': verbose},
+            options={'maxiter': maxiter, 'disp': verbose, 'eps': eps},
             callback=callback
         )
     
@@ -575,7 +572,7 @@ def cross_validate(param_names, data, n_splits=None, test_size=None, random_stat
                 args=(param_names, data, train_cases),
                 maxiter=maxiter,
                 popsize=popsize,
-                seed=OPTIM_SETTINGS.get('seed', 42),
+                seed=OPTIM_SETTINGS.get('seed', 42), # type: ignore
                 disp=False,
                 workers=1
             )

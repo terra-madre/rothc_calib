@@ -98,8 +98,8 @@ if __name__ == "__main__":
     print(f"Baseline RMSE: {baseline_rmse:.4f}")
 
     # Run DE on selected sets (ordered by param count for runtime)
-    sets_to_test = ['Tier1_Core', 'Set_D_Amendments', 'Set_A_Annuals', 
-                    'Set_B_Trees', 'Set_C_Pasture', 'Tier1_All']
+    sets_to_test = ['Amendments', 'Annuals', 'Pasture', 'Trees',
+                    'Tier1', 'Tier1_Tier2']
     
     all_results = []
     for set_name in sets_to_test:

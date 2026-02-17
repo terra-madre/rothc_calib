@@ -71,12 +71,12 @@ def RMF_Moist (RAIN, PEVAP, clay, depth, PC, SWC):
 
 
 # Calculates the plant retainment modifying factor (RMF_PC)
-def RMF_PC (PC):
+def RMF_PC (PC, pc_modifier=0.6):
      
     if (PC==0):
         RM_PC = 1.0
     else:
-        RM_PC = 0.6
+        RM_PC = pc_modifier
 
     return RM_PC
 
@@ -148,12 +148,12 @@ def decomp(timeFact, DPM, RPM, BIO, HUM, IOM, SOC, RateM, clay, C_Inp, FYM_Inp, 
     return
 
 
-def rothc(timeFact, DPM, RPM, BIO, HUM, IOM, SOC, clay, depth, TEMP, RAIN, PEVAP, PC, DPM_RPM, C_Inp, FYM_Inp, SWC, RM_TILL=1.0):     
+def rothc(timeFact, DPM, RPM, BIO, HUM, IOM, SOC, clay, depth, TEMP, RAIN, PEVAP, PC, DPM_RPM, C_Inp, FYM_Inp, SWC, RM_TILL=1.0, pc_modifier=0.6):     
      
     # Calculate RMFs     
     RM_TMP = RMF_Tmp(TEMP)
     RM_Moist = RMF_Moist(RAIN, PEVAP, clay, depth, PC, SWC)
-    RM_PC = RMF_PC(PC)
+    RM_PC = RMF_PC(PC, pc_modifier)
 
     # Combine RMF's into one.      
     RateM = RM_TMP*RM_Moist*RM_PC*RM_TILL
