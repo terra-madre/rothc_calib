@@ -60,7 +60,7 @@ def calc_c_herb(
         if not mgmt_params_crops.empty:
             frac_remaining_crops = mgmt_params_crops['frac_remaining'].values[0]
             
-            for crop_col in ['crop1_name', 'crop2_name', 'crop3_name']:
+            for crop_col in ['crop1_name', 'crop2_name', 'crop3_name', 'crop4_name', 'crop5_name', 'crop6_name']:
                 crop_name = row[crop_col]
                 if pd.isna(crop_name):
                     continue
@@ -185,13 +185,14 @@ def calc_c_tree(
         # Get tree parameters
         tree_params = ps_trees[ps_trees['species'] == tree_name]
         if tree_params.empty:
-            print(f"Warning: No parameters found for tree '{tree_name}'")
-            continue
+            raise ValueError(f"No parameters found for tree '{tree_name}'")
         tree_params = tree_params.iloc[0]
         
         # Get AGB from input data (already provided in t/ha)
         if pd.isna(row['tree_agb_t_ha']) or row['tree_agb_t_ha'] == 0:
             continue
+        
+        agb_t_ha = row['tree_agb_t_ha']
         
         # Calculate BGB
         bgb_t_ha = agb_t_ha * tree_params['r_s_ratio (kg/kg)']
@@ -234,6 +235,8 @@ def calc_c_amend(
 ):
     """Calculate carbon inputs from amendments based on treatments.
     
+    Processes up to 2 amendments (amend1_name, amend2_name) and sums their carbon inputs.
+    
     Args:
         cases_treatments_df (pd.DataFrame): DataFrame with treatment info per case
         ps_amendments (pd.DataFrame): DataFrame with amendment parameters
@@ -247,30 +250,41 @@ def calc_c_amend(
     
     # Process each row
     for idx, row in df.iterrows():
-        amend_name = row['amend_name']
+        total_c_input = 0.0
         
-        if pd.isna(amend_name):
-            continue
+        # Process both amendment slots
+        for amend_num in [1, 2]:
+            amend_name_col = f'amend{amend_num}_name'
+            amend_fresh_col = f'amend{amend_num}_fresh_t_ha_y'
+            
+            # Check if columns exist
+            if amend_name_col not in row or amend_fresh_col not in row:
+                continue
+            
+            amend_name = row[amend_name_col]
+            if pd.isna(amend_name):
+                continue
+            
+            # Get amendment parameters
+            amend_params = ps_amendments[ps_amendments['sub_type'] == amend_name]
+            if amend_params.empty:
+                print(f"Warning: No parameters found for amendment '{amend_name}'")
+                continue
+            amend_params = amend_params.iloc[0]
+            
+            # Get fresh amendment amount from input data
+            amend_fresh_t_ha = row[amend_fresh_col]
+            if pd.isna(amend_fresh_t_ha) or amend_fresh_t_ha == 0:
+                continue
+            
+            # Calculate dry matter amount
+            amend_dry_t_ha = amend_fresh_t_ha * amend_params['dry_frac (kgDM/kgFM)']
+            
+            # Calculate carbon input
+            c_input_t_ha = amend_dry_t_ha * amend_params['c_frac (kgC/kgDM)']
+            total_c_input += c_input_t_ha
         
-        # Get amendment parameters
-        amend_params = ps_amendments[ps_amendments['sub_type'] == amend_name]
-        if amend_params.empty:
-            print(f"Warning: No parameters found for amendment '{amend_name}'")
-            continue
-        amend_params = amend_params.iloc[0]
-        
-        # Get fresh amendment amount from input data
-        amend_fresh_t_ha = row['amend_fresh_t_ha']
-        if pd.isna(amend_fresh_t_ha) or amend_fresh_t_ha == 0:
-            continue
-        
-        # Calculate dry matter amount
-        amend_dry_t_ha = amend_fresh_t_ha * amend_params['dry_frac (kgDM/kgFM)']
-        
-        # Calculate carbon input
-        c_input_t_ha = amend_dry_t_ha * amend_params['c_frac (kgC/kgDM)']
-        
-        df.at[idx, 'c_input_amend_t_ha'] = round(c_input_t_ha, 2)
+        df.at[idx, 'c_input_amend_t_ha'] = round(total_c_input, 2)
     
     # Return result with only needed columns
     result = df[['subcase', 'c_input_amend_t_ha']].copy()
