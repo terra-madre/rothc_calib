@@ -16,6 +16,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from optimization import (
     PARAM_CONFIG,
+    PARAM_SETS,
+    OPTIM_SETTINGS,
     precompute_data,
     objective,
     run_optimization,
@@ -210,14 +212,8 @@ def run_phase2_tests():
     print(f"  Baseline Bias: {baseline_metrics['bias']:.4f}")
     print(f"  Baseline R²:   {baseline_metrics['r2']:.4f}")
     
-    # Parameter sets to test
-    param_sets = {
-        'Tier1_Core': ['dr_ratio_annuals', 'map_to_prod'],
-        'Set_A_Annuals': ['dr_ratio_annuals', 'map_to_prod', 'covercrop_rs_ratio'],
-        'Set_B_Trees': ['dr_ratio_treegrass', 'tree_fine_root_ratio'],
-        'Tier1_All': ['dr_ratio_annuals', 'dr_ratio_treegrass', 'map_to_prod', 
-                      'covercrop_rs_ratio'],
-    }
+    # Parameter sets to test (loaded from config files)
+    param_sets = PARAM_SETS
     
     # Benchmark
     print("\n[3/7] Benchmarking iteration time (Tier1_Core)...")
@@ -236,15 +232,21 @@ def run_phase2_tests():
         time.sleep(1)
     
     # Test differential evolution (only with smaller sets due to runtime)
-    print("\n[5/7] Testing Differential Evolution (Tier1_Core only)...")
-    de_result = test_differential_evolution(
-        param_sets['Tier1_Core'], 
-        data, 
-        maxiter=50,  # Fewer iterations for DE due to population size
-        popsize=10
-    )
-    de_result['set_name'] = 'Tier1_Core'
-    results.append(de_result)
+    de_maxiter = int(OPTIM_SETTINGS.get('maxiter', 50))
+    de_popsize = int(OPTIM_SETTINGS.get('popsize', 10))
+    de_seed = int(OPTIM_SETTINGS.get('seed', 42))
+    
+    de_sets = ['Tier1_Core', 'Tier1_All']
+    for i, set_name in enumerate(de_sets):
+        print(f"\n[{5+i}/7] Testing Differential Evolution ({set_name})...")
+        de_result = test_differential_evolution(
+            param_sets[set_name], 
+            data, 
+            maxiter=de_maxiter,
+            popsize=de_popsize
+        )
+        de_result['set_name'] = set_name
+        results.append(de_result)
     
     # Summary comparison
     print("\n[6/7] Results Summary")

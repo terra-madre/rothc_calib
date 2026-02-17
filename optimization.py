@@ -4,6 +4,11 @@ RothC Model Parameter Optimization Module
 This module provides functions for calibrating RothC model parameters
 using scipy optimization with cross-validation support.
 
+Configuration is loaded from CSV files in inputs/optimization/:
+  - param_config.csv: parameter definitions (name, default, bounds, source, tier)
+  - param_sets.csv: named groups of parameters to optimize together
+  - optim_settings.csv: algorithm settings (method, maxiter, popsize, etc.)
+
 Usage:
     from optimization import precompute_data, objective, run_optimization, cross_validate
     
@@ -26,82 +31,78 @@ import calc_soc_deltas as step6
 
 
 # =============================================================================
-# Parameter Configuration
+# Configuration Loading
 # =============================================================================
 
-PARAM_CONFIG = {
-    # Tier 1: High Priority
-    'dr_ratio_annuals': {
-        'default': 1.44,
-        'bounds': (0.5, 2.5),
-        'source': 'ps_general',
-        'description': 'DPM/RPM ratio for annual crops'
-    },
-    'dr_ratio_treegrass': {
-        'default': 0.67,
-        'bounds': (0.3, 1.5),
-        'source': 'ps_general',
-        'description': 'DPM/RPM ratio for trees/grass'
-    },
-    'map_to_prod': {
-        'default': 0.006,
-        'bounds': (0.004, 0.08),
-        'source': 'ps_general',
-        'description': 'Productivity from MAP (t/mm)'
-    },
-    'covercrop_rs_ratio': {
-        'default': 0.47,
-        'bounds': (0.3, 1.0),
-        'source': 'ps_herbaceous',
-        'description': 'Root:shoot ratio for cover crops'
-    },
+def _get_config_dir():
+    """Return path to inputs/optimization/ config directory."""
+    return Path(__file__).resolve().parents[1] / "inputs" / "optimization"
+
+
+def load_param_config(config_dir=None):
+    """Load parameter configuration from param_config.csv.
     
-    # Tier 2: Medium Priority
-    'grass_rs_ratio': {
-        'default': 0.8,
-        'bounds': (0.5, 2.0),
-        'source': 'ps_herbaceous',
-        'description': 'Root:shoot ratio for permanent grasses'
-    },
-    'tree_fine_root_ratio': {
-        'default': 0.3,
-        'bounds': (0.1, 0.6),
-        'source': 'ps_trees',
-        'description': 'Fine/total root ratio for trees'
-    },
-    'tree_turnover_ag': {
-        'default': 0.02,
-        'bounds': (0.01, 0.05),
-        'source': 'ps_trees',
-        'description': 'Leaf/litter turnover (y⁻¹)'
-    },
-    'dr_ratio_amend': {
-        'default': 1.0,
-        'bounds': (0.5, 2.0),
-        'source': 'ps_general',
-        'description': 'DPM/RPM ratio for amendments'
-    },
-    'grass_prod_modifier': {
-        'default': 1.0,
-        'bounds': (0.8, 1.5),
-        'source': 'ps_management',
-        'description': 'Productivity modifier for grassland'
-    },
+    Returns:
+        dict: {param_name: {default, bounds, source, tier, description}}
+    """
+    if config_dir is None:
+        config_dir = _get_config_dir()
+    df = pd.read_csv(Path(config_dir) / "param_config.csv")
+    config = {}
+    for _, row in df.iterrows():
+        config[row['name']] = {
+            'default': row['default'],
+            'bounds': (row['bound_min'], row['bound_max']),
+            'source': row['source'],
+            'tier': int(row['tier']),
+            'description': row['description'],
+        }
+    return config
+
+
+def load_param_sets(config_dir=None):
+    """Load named parameter sets from param_sets.csv.
     
-    # Tier 3: Lower Priority
-    'plant_cover_modifier': {
-        'default': 0.6,
-        'bounds': (0.4, 0.8),
-        'source': 'rothc',
-        'description': 'Decomposition rate with plant cover'
-    },
-    'residue_frac_remaining': {
-        'default': 1.0,
-        'bounds': (0.7, 1.0),
-        'source': 'ps_management',
-        'description': 'Residue fraction under conservation'
-    },
-}
+    Returns:
+        dict: {set_name: [param_name, ...]}
+    """
+    if config_dir is None:
+        config_dir = _get_config_dir()
+    df = pd.read_csv(Path(config_dir) / "param_sets.csv")
+    sets = {}
+    for set_name, group in df.groupby('set_name'):
+        sets[set_name] = group['param_name'].tolist()
+    return sets
+
+
+def load_optim_settings(config_dir=None):
+    """Load optimization settings from optim_settings.csv.
+    
+    Returns:
+        dict: {setting_name: value} with automatic type casting
+    """
+    if config_dir is None:
+        config_dir = _get_config_dir()
+    df = pd.read_csv(Path(config_dir) / "optim_settings.csv")
+    settings = {}
+    for _, row in df.iterrows():
+        val = row['value']
+        # Auto-cast numeric values
+        try:
+            if '.' in str(val):
+                val = float(val)
+            else:
+                val = int(val)
+        except (ValueError, TypeError):
+            pass
+        settings[row['setting']] = val
+    return settings
+
+
+# Load configs at module level (used as defaults throughout)
+PARAM_CONFIG = load_param_config()
+PARAM_SETS = load_param_sets()
+OPTIM_SETTINGS = load_optim_settings()
 
 # Cover crop types in ps_herbaceous
 COVER_CROP_TYPES = [
@@ -418,21 +419,30 @@ def objective(param_values, param_names, data, case_subset=None, return_details=
 # Optimization Functions
 # =============================================================================
 
-def run_optimization(param_names, data, case_subset=None, method='L-BFGS-B', 
-                     maxiter=100, verbose=True):
+def run_optimization(param_names, data, case_subset=None, method=None, 
+                     maxiter=None, popsize=None, verbose=True):
     """Run parameter optimization.
+    
+    Settings default to values from OPTIM_SETTINGS (inputs/optimization/optim_settings.csv).
     
     Args:
         param_names: List of parameter names to optimize
         data: Dict from precompute_data()
         case_subset: Optional list of case IDs to use
-        method: Optimization method ('L-BFGS-B' or 'differential_evolution')
-        maxiter: Maximum iterations
+        method: Optimization method (default: from optim_settings)
+        maxiter: Maximum iterations (default: from optim_settings)
+        popsize: DE population size multiplier (default: from optim_settings)
         verbose: Print progress
     
     Returns:
         Dict with optimization results
     """
+    if method is None:
+        method = OPTIM_SETTINGS.get('method', 'differential_evolution')
+    if maxiter is None:
+        maxiter = OPTIM_SETTINGS.get('maxiter', 100)
+    if popsize is None:
+        popsize = OPTIM_SETTINGS.get('popsize', 15)
     # Get initial values and bounds
     x0 = [PARAM_CONFIG[p]['default'] for p in param_names]
     bounds = [PARAM_CONFIG[p]['bounds'] for p in param_names]
@@ -456,8 +466,10 @@ def run_optimization(param_names, data, case_subset=None, method='L-BFGS-B',
             bounds,
             args=(param_names, data, case_subset),
             maxiter=maxiter,
-            seed=42,
+            popsize=popsize,
+            seed=OPTIM_SETTINGS.get('seed', 42),
             disp=verbose,
+            workers=1,
             callback=lambda xk, convergence: callback(xk)
         )
     else:
@@ -487,23 +499,40 @@ def run_optimization(param_names, data, case_subset=None, method='L-BFGS-B',
     }
 
 
-def cross_validate(param_names, data, n_splits=5, test_size=0.2, random_state=42,
-                   method='L-BFGS-B', maxiter=100, verbose=True):
+def cross_validate(param_names, data, n_splits=None, test_size=None, random_state=None,
+                   method=None, maxiter=None, popsize=None, verbose=True):
     """Stratified k-fold cross-validation with held-out test set.
+    
+    Settings default to values from OPTIM_SETTINGS (inputs/optimization/optim_settings.csv).
     
     Args:
         param_names: List of parameter names to optimize
         data: Dict from precompute_data()
-        n_splits: Number of CV folds
-        test_size: Fraction for held-out test set
-        random_state: Random seed
-        method: Optimization method
-        maxiter: Maximum iterations per fold
+        n_splits: Number of CV folds (default: from optim_settings)
+        test_size: Fraction for held-out test set (default: from optim_settings)
+        random_state: Random seed (default: from optim_settings)
+        method: 'L-BFGS-B' or 'differential_evolution' (default: from optim_settings)
+        maxiter: Maximum iterations per fold (default: from optim_settings)
+        popsize: DE population size multiplier (default: from optim_settings)
         verbose: Print progress
     
     Returns:
         Tuple of (cv_results_df, test_rmse, test_cases)
     """
+    # Apply defaults from settings file
+    if n_splits is None:
+        n_splits = OPTIM_SETTINGS.get('n_splits', 5)
+    if test_size is None:
+        test_size = OPTIM_SETTINGS.get('test_size', 0.2)
+    if random_state is None:
+        random_state = OPTIM_SETTINGS.get('cv_random_state', 42)
+    if method is None:
+        method = OPTIM_SETTINGS.get('method', 'differential_evolution')
+    if maxiter is None:
+        maxiter = OPTIM_SETTINGS.get('maxiter', 100)
+    if popsize is None:
+        popsize = OPTIM_SETTINGS.get('popsize', 15)
+
     cases_df = data['cases_info_df']
     
     # 1. Reserve held-out test set
@@ -517,6 +546,9 @@ def cross_validate(param_names, data, n_splits=5, test_size=0.2, random_state=42
     
     if verbose:
         print(f"Dataset split: {len(train_val_cases)} train/val, {len(test_cases)} test")
+        print(f"Method: {method}, maxiter: {maxiter}")
+        if method == 'differential_evolution':
+            print(f"DE popsize multiplier: {popsize}")
         print(f"Running {n_splits}-fold CV on train/val set\n")
     
     # 2. Stratified k-fold on train_val
@@ -536,14 +568,26 @@ def cross_validate(param_names, data, n_splits=5, test_size=0.2, random_state=42
             print(f"Fold {fold+1}/{n_splits}: {len(train_cases)} train, {len(val_cases)} val")
         
         # Optimize on training cases
-        result = minimize(
-            objective,
-            x0,
-            args=(param_names, data, train_cases),
-            method=method,
-            bounds=bounds,
-            options={'maxiter': maxiter, 'disp': False}
-        )
+        if method == 'differential_evolution':
+            result = differential_evolution(
+                objective,
+                bounds,
+                args=(param_names, data, train_cases),
+                maxiter=maxiter,
+                popsize=popsize,
+                seed=OPTIM_SETTINGS.get('seed', 42),
+                disp=False,
+                workers=1
+            )
+        else:
+            result = minimize(
+                objective,
+                x0,
+                args=(param_names, data, train_cases),
+                method=method,
+                bounds=bounds,
+                options={'maxiter': maxiter, 'disp': False}
+            )
         
         # Evaluate on validation cases
         train_rmse, train_details = objective(result.x, param_names, data, train_cases, return_details=True)
@@ -612,20 +656,25 @@ def get_baseline_rmse(data, case_subset=None):
 def print_param_config():
     """Print all available parameters and their configuration."""
     print("Available parameters for calibration:\n")
-    for tier, tier_params in [
-        ('Tier 1 (High Priority)', ['dr_ratio_annuals', 'dr_ratio_treegrass', 'map_to_prod', 
-                                    'covercrop_rs_ratio']),
-        ('Tier 2 (Medium Priority)', ['grass_rs_ratio', 'tree_fine_root_ratio', 'tree_turnover_ag',
-                                       'dr_ratio_amend', 'grass_prod_modifier']),
-        ('Tier 3 (Lower Priority)', ['plant_cover_modifier', 'residue_frac_remaining'])
-    ]:
-        print(f"{tier}:")
-        for p in tier_params:
-            cfg = PARAM_CONFIG[p]
-            print(f"  {p}:")
-            print(f"    Default: {cfg['default']}, Bounds: {cfg['bounds']}")
-            print(f"    Source: {cfg['source']}, {cfg['description']}")
+    for tier in sorted(set(cfg['tier'] for cfg in PARAM_CONFIG.values())):
+        tier_label = {1: 'Tier 1 (High Priority)', 2: 'Tier 2 (Medium Priority)',
+                      3: 'Tier 3 (Lower Priority)'}.get(tier, f'Tier {tier}')
+        print(f"{tier_label}:")
+        for p, cfg in PARAM_CONFIG.items():
+            if cfg['tier'] == tier:
+                print(f"  {p}:")
+                print(f"    Default: {cfg['default']}, Bounds: {cfg['bounds']}")
+                print(f"    Source: {cfg['source']}, {cfg['description']}")
         print()
+
+    print("Available parameter sets:")
+    for set_name, params in PARAM_SETS.items():
+        print(f"  {set_name}: {params}")
+    print()
+
+    print("Optimization settings:")
+    for k, v in OPTIM_SETTINGS.items():
+        print(f"  {k}: {v}")
 
 
 # =============================================================================

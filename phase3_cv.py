@@ -17,6 +17,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from optimization import (
     PARAM_CONFIG,
+    PARAM_SETS,
+    OPTIM_SETTINGS,
     precompute_data,
     objective,
     cross_validate,
@@ -61,13 +63,8 @@ def run_phase3_cv(output_dir='../outputs'):
     print(f"Baseline R²: {baseline['r2']:.4f}")
     print()
     
-    # Define parameter sets to test
-    param_sets = {
-        'Tier1_Core': ['dr_ratio_annuals', 'map_to_prod'],
-        'Tier1_All': ['dr_ratio_annuals', 'dr_ratio_treegrass', 'map_to_prod', 
-                      'covercrop_rs_ratio'],
-        'Set_A_Annuals': ['dr_ratio_annuals', 'map_to_prod', 'covercrop_rs_ratio'],
-    }
+    # Define parameter sets to test (loaded from config files)
+    param_sets = PARAM_SETS
     
     # Storage for results
     all_fold_results = []
@@ -88,11 +85,6 @@ def run_phase3_cv(output_dir='../outputs'):
             cv_df, test_rmse, test_cases = cross_validate(
                 param_names=param_names,
                 data=data,
-                n_splits=5,
-                test_size=0.2,
-                random_state=42,
-                method='L-BFGS-B',
-                maxiter=100,
                 verbose=True
             )
             
@@ -210,8 +202,8 @@ def run_phase3_with_differential_evolution(output_dir='../outputs'):
     baseline = get_baseline_rmse(data)
     print(f"Baseline RMSE: {baseline['rmse']:.4f}\n")
     
-    # Test Tier1_Core (best from Phase 2)
-    param_names = ['dr_ratio_annuals', 'map_to_prod']
+    # Test Tier1_Core
+    param_names = PARAM_SETS.get('Tier1_Core', ['dr_ratio_annuals', 'map_to_prod'])
     
     print(f"Parameters: {param_names}")
     print("Method: Differential Evolution")
@@ -219,16 +211,10 @@ def run_phase3_with_differential_evolution(output_dir='../outputs'):
     
     start_time = time.time()
     
-    # Use modified cross_validate with DE
-    # Note: This will take much longer (~8 min per fold with 484 iterations)
     cv_df, test_rmse, test_cases = cross_validate(
         param_names=param_names,
         data=data,
-        n_splits=5,
-        test_size=0.2,
-        random_state=42,
-        method='differential_evolution',  # Note: need to modify cross_validate to support this
-        maxiter=1000,  # For DE: maxiter is population * generations
+        method='differential_evolution',
         verbose=True
     )
     

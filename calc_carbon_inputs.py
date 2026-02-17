@@ -169,11 +169,14 @@ def calc_c_tree(
         ps_management (pd.DataFrame): DataFrame with management parameters
     
     Returns:
-        pd.DataFrame: DataFrame with calculated carbon inputs (case, group, c_input_tree_t_ha)
+        pd.DataFrame: DataFrame with calculated carbon inputs split into:
+            - c_input_tree_litter_t_ha (fine roots + leaves)
+            - c_input_tree_prunings_t_ha (remaining prunings)
     """
     
     df = cases_treatments_df.copy()
-    df['c_input_tree_t_ha'] = 0.0
+    df['c_input_tree_litter_t_ha'] = 0.0
+    df['c_input_tree_prunings_t_ha'] = 0.0
     
     # Process each row
     for idx, row in df.iterrows():
@@ -220,12 +223,14 @@ def calc_c_tree(
         else:
             c_pruning_remaining_t_ha = 0.0
         
-        # Total C input = litter + prunings
-        total_c_input = c_leaf_litter_t_ha + c_root_litter_t_ha + c_pruning_remaining_t_ha
-        df.at[idx, 'c_input_tree_t_ha'] = round(total_c_input, 2)
+        # Split C input into litter (fine roots + leaves) and prunings
+        c_tree_litter_t_ha = c_leaf_litter_t_ha + c_root_litter_t_ha
+        c_tree_prunings_t_ha = c_pruning_remaining_t_ha
+        df.at[idx, 'c_input_tree_litter_t_ha'] = round(c_tree_litter_t_ha, 2)
+        df.at[idx, 'c_input_tree_prunings_t_ha'] = round(c_tree_prunings_t_ha, 2)
     
     # Return result with only needed columns
-    result = df[['subcase', 'c_input_tree_t_ha']].copy()
+    result = df[['subcase', 'c_input_tree_litter_t_ha', 'c_input_tree_prunings_t_ha']].copy()
     return result
 
 
@@ -321,7 +326,10 @@ def calc_c_inputs(
         use_covercrop_yield (bool): If True, use st_yield for covercrop biomass; if False, use map_to_prod (default: False)
     
     Returns:
-        pd.DataFrame: DataFrame with calculated carbon inputs (case, group, c_input_t_ha, dpm_rpm_ratio)
+        pd.DataFrame: DataFrame with calculated carbon inputs and weighted DPM/RPM ratio.
+            Columns include: subcase, c_input_annuals_t_ha, c_input_grass_t_ha,
+            c_input_tree_litter_t_ha, c_input_tree_prunings_t_ha, c_input_amend_t_ha,
+            c_input_t_ha, dpm_rpm_ratio.
     """
     
     # Calculate C inputs from each source
@@ -347,32 +355,42 @@ def calc_c_inputs(
     )
     
     # Merge all results
-    result = c_herb.merge(c_tree[['subcase', 'c_input_tree_t_ha']], on=['subcase'], how='left')
+    result = c_herb.merge(
+        c_tree[['subcase', 'c_input_tree_litter_t_ha', 'c_input_tree_prunings_t_ha']],
+        on=['subcase'],
+        how='left'
+    )
     result = result.merge(c_amend[['subcase', 'c_input_amend_t_ha']], on=['subcase'], how='left')
     
     # Fill NaN with 0
-    result['c_input_tree_t_ha'] = result['c_input_tree_t_ha'].fillna(0)
+    result['c_input_tree_litter_t_ha'] = result['c_input_tree_litter_t_ha'].fillna(0)
+    result['c_input_tree_prunings_t_ha'] = result['c_input_tree_prunings_t_ha'].fillna(0)
     result['c_input_amend_t_ha'] = result['c_input_amend_t_ha'].fillna(0)
     result['c_input_grass_t_ha'] = result['c_input_grass_t_ha'].fillna(0)
     
     # Get DPM/RPM ratios from ps_general
     dr_ratio_annuals = ps_general[ps_general['name'] == 'dr_ratio_annuals']['value'].values[0]
     dr_ratio_treegrass = ps_general[ps_general['name'] == 'dr_ratio_treegrass']['value'].values[0]
+    dr_ratio_wood = ps_general[ps_general['name'] == 'dr_ratio_wood']['value'].values[0]
     dr_ratio_amend = ps_general[ps_general['name'] == 'dr_ratio_amend']['value'].values[0]
     
     # Calculate weighted DPM/RPM ratio
-    # DPM/RPM = (C_annuals * dr_annuals + C_grass * dr_treegrass + C_tree * dr_treegrass + C_amend * dr_amend) / C_total
+    # DPM/RPM = (C_annuals * dr_annuals + C_grass * dr_treegrass +
+    #            C_tree_litter * dr_treegrass + C_tree_prunings * dr_wood +
+    #            C_amend * dr_amend) / C_total
     result['c_input_t_ha'] = (
         result['c_input_annuals_t_ha'] + 
         result['c_input_grass_t_ha'] + 
-        result['c_input_tree_t_ha'] + 
+        result['c_input_tree_litter_t_ha'] +
+        result['c_input_tree_prunings_t_ha'] +
         result['c_input_amend_t_ha']
     )
     
     result['dpm_rpm_ratio'] = (
         (result['c_input_annuals_t_ha'] * dr_ratio_annuals +
          result['c_input_grass_t_ha'] * dr_ratio_treegrass +
-         result['c_input_tree_t_ha'] * dr_ratio_treegrass +
+         result['c_input_tree_litter_t_ha'] * dr_ratio_treegrass +
+         result['c_input_tree_prunings_t_ha'] * dr_ratio_wood +
          result['c_input_amend_t_ha'] * dr_ratio_amend) /
         result['c_input_t_ha']
     ).where(result['c_input_t_ha'] > 0, 1.44)  # Default to annuals ratio if no inputs
@@ -382,8 +400,9 @@ def calc_c_inputs(
     result['dpm_rpm_ratio'] = result['dpm_rpm_ratio'].round(3)
     
     # Return final result
-    result = result[['subcase', 'c_input_annuals_t_ha', 'c_input_grass_t_ha', 
-                     'c_input_tree_t_ha', 'c_input_amend_t_ha', 
+    result = result[['subcase', 'c_input_annuals_t_ha', 'c_input_grass_t_ha',
+                     'c_input_tree_litter_t_ha', 'c_input_tree_prunings_t_ha',
+                     'c_input_amend_t_ha',
                      'c_input_t_ha', 'dpm_rpm_ratio']].copy()
     
     return result
