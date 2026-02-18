@@ -497,7 +497,8 @@ def run_optimization(param_names, data, case_subset=None, method=None,
 
 
 def cross_validate(param_names, data, n_splits=None, test_size=None, random_state=None,
-                   method=None, maxiter=None, popsize=None, verbose=True):
+                   method=None, maxiter=None, popsize=None, x0_warmstart=None,
+                   verbose=True):
     """Stratified k-fold cross-validation with held-out test set.
     
     Settings default to values from OPTIM_SETTINGS (inputs/optimization/optim_settings.csv).
@@ -511,11 +512,15 @@ def cross_validate(param_names, data, n_splits=None, test_size=None, random_stat
         method: 'L-BFGS-B' or 'differential_evolution' (default: from optim_settings)
         maxiter: Maximum iterations per fold (default: from optim_settings)
         popsize: DE population size multiplier (default: from optim_settings)
+        x0_warmstart: Optional array of param values to warm-start each fold
+                      (for DE: seeded into population via x0; for local: initial guess)
         verbose: Print progress
     
     Returns:
         Tuple of (cv_results_df, test_rmse, test_cases)
     """
+    import time as _time
+    
     # Apply defaults from settings file
     if n_splits is None:
         n_splits = OPTIM_SETTINGS.get('n_splits', 5)
@@ -541,11 +546,18 @@ def cross_validate(param_names, data, n_splits=None, test_size=None, random_stat
     )
     train_val_df = cases_df[cases_df['case'].isin(train_val_cases)]
     
+    # Default initial values
+    x0_default = np.array([PARAM_CONFIG[p]['default'] for p in param_names])
+    x0 = np.array(x0_warmstart) if x0_warmstart is not None else x0_default
+    bounds = [PARAM_CONFIG[p]['bounds'] for p in param_names]
+    
     if verbose:
         print(f"Dataset split: {len(train_val_cases)} train/val, {len(test_cases)} test")
         print(f"Method: {method}, maxiter: {maxiter}")
         if method == 'differential_evolution':
-            print(f"DE popsize multiplier: {popsize}")
+            print(f"DE popsize multiplier: {popsize} (pop={popsize * len(param_names)})")
+        if x0_warmstart is not None:
+            print(f"Warm-start: {dict(zip(param_names, x0))}")
         print(f"Running {n_splits}-fold CV on train/val set\n")
     
     # 2. Stratified k-fold on train_val
@@ -554,12 +566,12 @@ def cross_validate(param_names, data, n_splits=None, test_size=None, random_stat
     cases = train_val_df['case'].values
     
     cv_results = []
-    x0 = [PARAM_CONFIG[p]['default'] for p in param_names]
-    bounds = [PARAM_CONFIG[p]['bounds'] for p in param_names]
+    cv_start = _time.time()
     
     for fold, (train_idx, val_idx) in enumerate(skf.split(cases, strata)):
         train_cases = cases[train_idx].tolist()
         val_cases = cases[val_idx].tolist()
+        fold_start = _time.time()
         
         if verbose:
             print(f"Fold {fold+1}/{n_splits}: {len(train_cases)} train, {len(val_cases)} val")
@@ -570,21 +582,30 @@ def cross_validate(param_names, data, n_splits=None, test_size=None, random_stat
                 objective,
                 bounds,
                 args=(param_names, data, train_cases),
+                x0=x0,  # Warm-start with best known solution
                 maxiter=maxiter,
                 popsize=popsize,
-                seed=OPTIM_SETTINGS.get('seed', 42), # type: ignore
-                disp=False,
-                workers=1
+                seed=OPTIM_SETTINGS.get('seed', 42) + fold,  # Different seed per fold
+                mutation=(0.5, 1.0),
+                recombination=0.7,
+                tol=0.001,
+                atol=0.001,
+                disp=verbose,
+                workers=1,
+                polish=False
             )
         else:
+            eps = OPTIM_SETTINGS.get('eps', 1e-8)
             result = minimize(
                 objective,
                 x0,
                 args=(param_names, data, train_cases),
                 method=method,
                 bounds=bounds,
-                options={'maxiter': maxiter, 'disp': False}
+                options={'maxiter': maxiter, 'disp': False, 'eps': eps}
             )
+        
+        fold_elapsed = _time.time() - fold_start
         
         # Evaluate on validation cases
         train_rmse, train_details = objective(result.x, param_names, data, train_cases, return_details=True)
@@ -594,26 +615,40 @@ def cross_validate(param_names, data, n_splits=None, test_size=None, random_stat
             'fold': fold + 1,
             'train_rmse': train_rmse,
             'val_rmse': val_rmse,
+            'train_r2': train_details['r2'],
+            'val_r2': val_details['r2'],
             'train_mae': train_details['mae'],
             'val_mae': val_details['mae'],
+            'train_bias': train_details['bias'],
+            'val_bias': val_details['bias'],
+            'n_train': len(train_cases),
+            'n_val': len(val_cases),
+            'time_s': fold_elapsed,
+            'func_calls': result.nfev,
             **dict(zip(param_names, result.x))
         }
         cv_results.append(fold_result)
         
+        total_elapsed = _time.time() - cv_start
         if verbose:
-            print(f"  Train RMSE: {train_rmse:.4f}, Val RMSE: {val_rmse:.4f}")
-            print(f"  Params: {dict(zip(param_names, result.x))}\n")
+            print(f"  Train RMSE: {train_rmse:.4f} (R²={train_details['r2']:.4f}), "
+                  f"Val RMSE: {val_rmse:.4f} (R²={val_details['r2']:.4f})")
+            print(f"  Fold time: {fold_elapsed:.0f}s ({fold_elapsed/60:.1f}min), "
+                  f"Total: {total_elapsed:.0f}s ({total_elapsed/60:.1f}min)")
+            print(f"  Params: {dict(zip(param_names, np.round(result.x, 4)))}\n")
     
     # 3. Final evaluation on held-out test set (using mean params from CV)
     cv_df = pd.DataFrame(cv_results)
     mean_params = [cv_df[p].mean() for p in param_names]
     test_rmse, test_details = objective(mean_params, param_names, data, test_cases.tolist(), return_details=True)
     
+    total_time = _time.time() - cv_start
     if verbose:
         print("=" * 50)
         print(f"CV Mean Train RMSE: {cv_df['train_rmse'].mean():.4f} ± {cv_df['train_rmse'].std():.4f}")
-        print(f"CV Mean Val RMSE: {cv_df['val_rmse'].mean():.4f} ± {cv_df['val_rmse'].std():.4f}")
-        print(f"Held-out Test RMSE: {test_rmse:.4f}")
+        print(f"CV Mean Val RMSE:   {cv_df['val_rmse'].mean():.4f} ± {cv_df['val_rmse'].std():.4f}")
+        print(f"Held-out Test RMSE: {test_rmse:.4f} (R²={test_details['r2']:.4f})")
+        print(f"Total CV time: {total_time:.0f}s ({total_time/60:.1f}min, {total_time/3600:.1f}h)")
         print(f"\nMean calibrated parameters:")
         for p in param_names:
             print(f"  {p}: {cv_df[p].mean():.4f} ± {cv_df[p].std():.4f}")
