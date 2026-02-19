@@ -30,15 +30,16 @@ from optimization import (
 BASE_DIR = Path(__file__).parent.parent
 
 # Phase 2 best solution (DE → L-BFGS-B, RMSE=1.4450)
+# NOTE: Values at bounds nudged slightly inside for DE compatibility
 PHASE2_BEST = np.array([
     3.489367,   # dr_ratio_annuals
     0.305041,   # dr_ratio_treegrass
     0.275310,   # dr_ratio_wood
     1.452270,   # dr_ratio_amend
-    1.000000,   # plant_cover_modifier
-    0.050000,   # tree_fine_root_ratio
+    0.999,      # plant_cover_modifier (was 1.0, nudged from upper bound 1.0)
+    0.050,      # tree_fine_root_ratio (now within bounds 0.03-0.2)
     1.995390,   # grass_rs_ratio
-    0.004000,   # map_to_prod
+    0.00404,    # map_to_prod (was 0.004, nudged from lower bound)
 ])
 
 
