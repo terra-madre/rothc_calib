@@ -551,8 +551,14 @@ def cross_validate(param_names, data, n_splits=None, test_size=None, random_stat
     x0 = np.array(x0_warmstart) if x0_warmstart is not None else x0_default
     bounds = [PARAM_CONFIG[p]['bounds'] for p in param_names]
     
+    # DEBUG: Check bounds vs x0
+    bounds_arr = np.array(bounds)
+    print(f"\nDEBUG bounds check:")
+    for i, pname in enumerate(param_names):
+        print(f"  {pname}: x0={x0[i]:.6f}, bounds={bounds[i]}, OK={bounds[i][0] <= x0[i] <= bounds[i][1]}")
+    
     if verbose:
-        print(f"Dataset split: {len(train_val_cases)} train/val, {len(test_cases)} test")
+        print(f"\nDataset split: {len(train_val_cases)} train/val, {len(test_cases)} test")
         print(f"Method: {method}, maxiter: {maxiter}")
         if method == 'differential_evolution':
             print(f"DE popsize multiplier: {popsize} (pop={popsize * len(param_names)})")
