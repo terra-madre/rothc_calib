@@ -65,7 +65,9 @@ PHASE3_MEAN = {
     'tree_fine_root_ratio':   0.0584,
     'grass_rs_ratio':         1.9730,
     'map_to_prod':            0.0040,
-    'residue_frac_remaining': 1.0,      # default (not in Phase 3 run)
+    'residue_frac_remaining': 0.15,   # new target: mostly removed (not grazed)
+    'cover_crop_rs_ratio':    0.50,   # new parameter
+    'tree_turnover_ag':       0.02,   # new parameter (already in config)
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -75,14 +77,14 @@ SUBRUN_DEFS = [
     {
         'name':   'Annuals',
         'groups': ['annuals_covercrops', 'annuals_resid'],
-        'params': ['dr_ratio_annuals', 'residue_frac_remaining'],
+        'params': ['dr_ratio_annuals', 'residue_frac_remaining', 'cover_crop_rs_ratio'],
         'maxiter': 100,
         'popsize': 15,
     },
     {
         'name':   'Trees',
         'groups': ['perennials_herb', 'perennials_herb+resid'],
-        'params': ['dr_ratio_treegrass', 'dr_ratio_wood', 'tree_fine_root_ratio'],
+        'params': ['dr_ratio_treegrass', 'dr_ratio_wood', 'tree_fine_root_ratio', 'tree_turnover_ag'],
         'maxiter': 100,
         'popsize': 15,
     },

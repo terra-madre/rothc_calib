@@ -226,6 +226,11 @@ def apply_param_updates(params, data):
                     ps_herbaceous, 'grassland - permanent grasses or shrubs', 
                     'r_s_ratio (kg/kg)', value
                 )
+            elif name == 'cover_crop_rs_ratio':
+                for cc_type in COVER_CROP_TYPES:
+                    ps_herbaceous = update_herbaceous_param(
+                        ps_herbaceous, cc_type, 'r_s_ratio (kg/kg)', value
+                    )
                 
         elif source == 'ps_trees':
             if name == 'tree_fine_root_ratio':
@@ -235,10 +240,11 @@ def apply_param_updates(params, data):
                 
         elif source == 'ps_management':
             if name == 'residue_frac_remaining':
-                # Only annuals (crops 1-6) and cover crops can take this
-                # management type, so this parameter only affects annual groups
+                # Targets "crop residues mostly removed (not grazed)" —
+                # the typical control management in annuals_resid cases.
+                # Range 0–0.15 (default 0.15 = current CSV value).
                 ps_management = update_management_param(
-                    ps_management, 'crop residues not removed (not grazed)', 
+                    ps_management, 'crop residues mostly removed (not grazed)',
                     'frac_remaining', value
                 )
         
