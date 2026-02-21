@@ -54,10 +54,14 @@ def calc_c_herb(
         crop_perc_cover = row['crop_perc_cover'] / 100 if pd.notna(row['crop_perc_cover']) else 0
         
         # --- Process main crops (crop1, crop2, crop3) ---
-        crops_residues = row['crops_residues']
-        mgmt_params_crops = ps_management[ps_management['management'] == crops_residues]
-        
-        if not mgmt_params_crops.empty:
+        # Check if there are any crops in this subcase
+        has_crops = any(pd.notna(row[crop_col]) for crop_col in ['crop1_name', 'crop2_name', 'crop3_name', 'crop4_name', 'crop5_name', 'crop6_name'])
+
+        if has_crops:
+            crops_residues = row['crops_residues']
+            mgmt_params_crops = ps_management[ps_management['management'] == crops_residues]
+            if mgmt_params_crops.empty:
+                raise ValueError(f"No management parameters found for crops_residues='{crops_residues}' in subcase '{row['subcase']}'")
             frac_remaining_crops = mgmt_params_crops['frac_remaining'].values[0]
             
             for crop_col in ['crop1_name', 'crop2_name', 'crop3_name', 'crop4_name', 'crop5_name', 'crop6_name']:
@@ -67,18 +71,20 @@ def calc_c_herb(
                 
                 # Get parameters and data
                 crop_params = ps_herbaceous[ps_herbaceous['group_cover'] == crop_name]
+                if crop_params.empty:
+                    raise ValueError(f"No herbaceous parameters found for crop '{crop_name}' in subcase '{row['subcase']}'")
+                
                 yield_data = st_yields_all[(st_yields_all['nuts3'] == nuts3) & 
                                            (st_yields_all['group_name'] == crop_name)]
-                
-                # Check if we have all required data
-                if crop_params.empty or yield_data.empty:
-                    continue
+                if yield_data.empty:
+                    raise ValueError(f"No yield data found for crop '{crop_name}', nuts3='{nuts3}' in subcase '{row['subcase']}'")
                 
                 crop_params = crop_params.iloc[0]
-                yield_tdm_ha = yield_data['yield_dry_irrigated_t_ha' if irrigation else 'yield_dry_rainfed_t_ha'].values[0]
+                yield_col = 'yield_dry_irrigated_t_ha' if irrigation else 'yield_dry_rainfed_t_ha'
+                yield_tdm_ha = yield_data[yield_col].values[0]
                 
                 if pd.isna(yield_tdm_ha):
-                    continue
+                    raise ValueError(f"Yield value is NaN for crop '{crop_name}', nuts3='{nuts3}', column='{yield_col}' in subcase '{row['subcase']}'")
                 
                 # Calculate biomass and inputs
                 residues_tdm_ha = yield_tdm_ha * crop_params['residue_yield_ratio (kg/kg)']
@@ -99,31 +105,35 @@ def calc_c_herb(
             mgmt_params_cc = ps_management[ps_management['management'] == covercrop_residues]
             
             # Check if we have all required parameters
-            if not cc_params.empty and not mgmt_params_cc.empty:
-                cc_params = cc_params.iloc[0]
-                frac_remaining = mgmt_params_cc['frac_remaining'].values[0]
-                agb_t_ha = None
-                
-                # Determine aboveground biomass based on method
-                if use_covercrop_yield:
-                    # Method 1: Use st_yield where yield = total biomass
-                    yield_data = st_yields_all[(st_yields_all['nuts3'] == nuts3) & 
-                                               (st_yields_all['group_name'] == covercrop_name)]
-                    if not yield_data.empty:
-                        total_biomass_tdm_ha = yield_data['yield_dry_irrigated_t_ha' if irrigation else 'yield_dry_rainfed_t_ha'].values[0]
-                        if pd.notna(total_biomass_tdm_ha):
-                            agb_t_ha = total_biomass_tdm_ha
-                else:
-                    # Method 2: Use precipitation productivity (map_to_prod)
-                    agb_t_ha = map_mm * map_to_prod
-                
-                # Calculate carbon input if we have valid biomass
-                if agb_t_ha is not None:
-                    bgb_t_ha = agb_t_ha * cc_params['r_s_ratio (kg/kg)']
-                    agb_input_t_ha = agb_t_ha * frac_remaining
-                    bgb_input_t_ha = bgb_t_ha * cc_params['turnover_bg (y-1)']
-                    c_input_t_ha = (agb_input_t_ha + bgb_input_t_ha) * cc_params['c_frac (kgC/kgDM)']
-                    total_c_input_annuals += c_input_t_ha
+            if cc_params.empty:
+                raise ValueError(f"No herbaceous parameters found for covercrop '{covercrop_name}' in subcase '{row['subcase']}'")
+            if mgmt_params_cc.empty:
+                raise ValueError(f"No management parameters found for covercrop_residues='{covercrop_residues}' in subcase '{row['subcase']}'")
+            
+            cc_params = cc_params.iloc[0]
+            frac_remaining = mgmt_params_cc['frac_remaining'].values[0]
+            
+            # Determine aboveground biomass based on method
+            if use_covercrop_yield:
+                # Method 1: Use st_yield where yield = total biomass
+                yield_data = st_yields_all[(st_yields_all['nuts3'] == nuts3) & 
+                                           (st_yields_all['group_name'] == covercrop_name)]
+                if yield_data.empty:
+                    raise ValueError(f"No yield data found for covercrop '{covercrop_name}', nuts3='{nuts3}' in subcase '{row['subcase']}'")
+                yield_col = 'yield_dry_irrigated_t_ha' if irrigation else 'yield_dry_rainfed_t_ha'
+                total_biomass_tdm_ha = yield_data[yield_col].values[0]
+                if pd.isna(total_biomass_tdm_ha):
+                    raise ValueError(f"Yield value is NaN for covercrop '{covercrop_name}', nuts3='{nuts3}', column='{yield_col}' in subcase '{row['subcase']}'")
+                agb_t_ha = total_biomass_tdm_ha
+            else:
+                # Method 2: Use precipitation productivity (map_to_prod)
+                agb_t_ha = map_mm * map_to_prod
+            
+            bgb_t_ha = agb_t_ha * cc_params['r_s_ratio (kg/kg)']
+            agb_input_t_ha = agb_t_ha * frac_remaining
+            bgb_input_t_ha = bgb_t_ha * cc_params['turnover_bg (y-1)']
+            c_input_t_ha = (agb_input_t_ha + bgb_input_t_ha) * cc_params['c_frac (kgC/kgDM)']
+            total_c_input_annuals += c_input_t_ha
         
         # --- Process grassland ---
         grass_perc_cover = row['grass_perc_cover'] / 100 if pd.notna(row['grass_perc_cover']) else 0
@@ -132,20 +142,24 @@ def calc_c_herb(
             mgmt_params_grass = ps_management[ps_management['management'] == 'natural grasses/shrubs with continuous grazing']
             
             # Check if we have all required parameters
-            if not grass_params.empty and not mgmt_params_grass.empty:
-                grass_params = grass_params.iloc[0]
-                frac_remaining = mgmt_params_grass['frac_remaining'].values[0]
-                prod_modifier = mgmt_params_grass['prod_modifier'].values[0]
-                
-                # Calculate biomass using precipitation productivity with modifier
-                agb_t_ha = map_mm * map_to_prod * prod_modifier
-                bgb_t_ha = agb_t_ha * grass_params['r_s_ratio (kg/kg)']
-                
-                agb_input_t_ha = agb_t_ha * frac_remaining
-                bgb_input_t_ha = bgb_t_ha * grass_params['turnover_bg (y-1)']
-                
-                c_input_t_ha = (agb_input_t_ha + bgb_input_t_ha) * grass_params['c_frac (kgC/kgDM)'] * grass_perc_cover
-                total_c_input_grass += c_input_t_ha
+            if grass_params.empty:
+                raise ValueError(f"No herbaceous parameters found for 'grassland - permanent grasses or shrubs' in subcase '{row['subcase']}'")
+            if mgmt_params_grass.empty:
+                raise ValueError(f"No management parameters found for 'natural grasses/shrubs with continuous grazing' in subcase '{row['subcase']}'")
+            
+            grass_params = grass_params.iloc[0]
+            frac_remaining = mgmt_params_grass['frac_remaining'].values[0]
+            prod_modifier = mgmt_params_grass['prod_modifier'].values[0]
+            
+            # Calculate biomass using precipitation productivity with modifier
+            agb_t_ha = map_mm * map_to_prod * prod_modifier
+            bgb_t_ha = agb_t_ha * grass_params['r_s_ratio (kg/kg)']
+            
+            agb_input_t_ha = agb_t_ha * frac_remaining
+            bgb_input_t_ha = bgb_t_ha * grass_params['turnover_bg (y-1)']
+            
+            c_input_t_ha = (agb_input_t_ha + bgb_input_t_ha) * grass_params['c_frac (kgC/kgDM)'] * grass_perc_cover
+            total_c_input_grass += c_input_t_ha
         
         # Store results
         df.at[idx, 'c_input_annuals_t_ha'] = round(total_c_input_annuals, 2)
@@ -215,11 +229,10 @@ def calc_c_tree(
         tree_prunings = row['tree_prunings']
         if pd.notna(tree_prunings):
             mgmt_params = ps_management[ps_management['management'] == tree_prunings]
-            if not mgmt_params.empty:
-                frac_remaining = mgmt_params['frac_remaining'].values[0]
-                c_pruning_remaining_t_ha = c_pruning_total_t_ha * frac_remaining
-            else:
-                c_pruning_remaining_t_ha = 0.0
+            if mgmt_params.empty:
+                raise ValueError(f"No management parameters found for tree_prunings='{tree_prunings}' in subcase '{row['subcase']}'")
+            frac_remaining = mgmt_params['frac_remaining'].values[0]
+            c_pruning_remaining_t_ha = c_pruning_total_t_ha * frac_remaining
         else:
             c_pruning_remaining_t_ha = 0.0
         
@@ -273,8 +286,7 @@ def calc_c_amend(
             # Get amendment parameters
             amend_params = ps_amendments[ps_amendments['sub_type'] == amend_name]
             if amend_params.empty:
-                print(f"Warning: No parameters found for amendment '{amend_name}'")
-                continue
+                raise ValueError(f"No parameters found for amendment '{amend_name}' in subcase '{row['subcase']}'")
             amend_params = amend_params.iloc[0]
             
             # Get fresh amendment amount from input data
