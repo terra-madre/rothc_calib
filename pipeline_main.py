@@ -22,8 +22,8 @@ fixed_data_dir.mkdir(parents=True, exist_ok=True)
 output_dir = repo_root / "outputs"
 output_dir.mkdir(parents=True, exist_ok=True)
 
-do_preprocess_cases = False  # Whether to run the preprocessing step (fetching/enriching data for cases)
-do_get_st_yields = False  # Whether to calculate st_yields (can be time-consuming)
+do_preprocess_cases = True  # Whether to run the preprocessing step (fetching/enriching data for cases)
+do_get_st_yields = True  # Whether to calculate st_yields (can be time-consuming)
 soil_depth = 30  # Soil depth in cm
 climate_out_file = loc_data_dir / "rothc_climate_avg.csv"
 
@@ -40,8 +40,10 @@ ps_amendments = pd.read_csv(fixed_data_dir / "ps_amendments.csv")
 # Step 1: Preprocess cases (fetch/enrich data)
 if do_preprocess_cases:
 
+    cases_info_df, cases_treatments_df = step1.prepare_variables(cases_info_raw_df, cases_treatments_df)
+
     cases_info_df, climate_df = step1.prepare_cases_df(
-        cases_info_raw_df,
+        cases_info_df,
         input_dir=input_dir,
         loc_data_dir=loc_data_dir,
         proc_data_dir=proc_data_dir,

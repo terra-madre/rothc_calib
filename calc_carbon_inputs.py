@@ -1,4 +1,5 @@
 # Import necessary libraries
+from numpy import exp
 import pandas as pd
 from io_utils import *
 
@@ -35,8 +36,11 @@ def calc_c_herb(
         how='left'
     )
     
-    # Get map_to_prod coefficient from ps_general
-    map_to_prod = ps_general[ps_general['name'] == 'map_to_prod']['value'].values[0]
+    # Get grass coefficients from ps_general
+    grass_anpp_a = ps_general[ps_general['name'] == 'grass_anpp_a']['value'].values[0]
+    grass_anpp_b = ps_general[ps_general['name'] == 'grass_anpp_b']['value'].values[0]
+    grass_rsr_a = ps_general[ps_general['name'] == 'grass_rsr_a']['value'].values[0]
+    grass_rsr_b = ps_general[ps_general['name'] == 'grass_rsr_b']['value'].values[0]
     
     # Initialize result columns - separate annuals and grass
     df['c_input_annuals_t_ha'] = 0.0
@@ -126,8 +130,8 @@ def calc_c_herb(
                     raise ValueError(f"Yield value is NaN for covercrop '{covercrop_name}', nuts3='{nuts3}', column='{yield_col}' in subcase '{row['subcase']}'")
                 agb_t_ha = total_biomass_tdm_ha
             else:
-                # Method 2: Use precipitation productivity (map_to_prod)
-                agb_t_ha = map_mm * map_to_prod
+                # Method 2: Use mean annual precipitation (map_mm) functions
+                agb_t_ha = map_mm * grass_anpp_a + grass_anpp_b * (map_mm ** 2) / 100  # Convert g/m2 to t/ha
             
             bgb_t_ha = agb_t_ha * cc_params['r_s_ratio (kg/kg)']
             agb_input_t_ha = agb_t_ha * frac_remaining
@@ -150,10 +154,14 @@ def calc_c_herb(
             grass_params = grass_params.iloc[0]
             frac_remaining = mgmt_params_grass['frac_remaining'].values[0]
             prod_modifier = mgmt_params_grass['prod_modifier'].values[0]
+
+            # For grassland, we calculate root to shoot ratio based on precipitation
+            r_s_ratio = grass_rsr_a * exp(map_mm * grass_rsr_b)  # Exponential function of precipitation
+            print(f"Calculated grass R/S ratio for map_mm={map_mm}: {r_s_ratio:.2f}")
             
             # Calculate biomass using precipitation productivity with modifier
-            agb_t_ha = map_mm * map_to_prod * prod_modifier
-            bgb_t_ha = agb_t_ha * grass_params['r_s_ratio (kg/kg)']
+            agb_t_ha = map_mm * grass_anpp_a + grass_anpp_b * (map_mm ** 2) / 100  # Convert g/m2 to t/ha
+            bgb_t_ha = agb_t_ha * r_s_ratio
             
             agb_input_t_ha = agb_t_ha * frac_remaining
             bgb_input_t_ha = bgb_t_ha * grass_params['turnover_bg (y-1)']
@@ -249,26 +257,34 @@ def calc_c_tree(
 
 def calc_c_amend(
     cases_treatments_df,
-    ps_amendments
+    ps_amendments,
+    ps_general
 ):
     """Calculate carbon inputs from amendments based on treatments.
     
     Processes up to 2 amendments (amend1_name, amend2_name) and sums their carbon inputs.
+    Each amendment type uses its own DPM/RPM ratio as specified by the 'dr_ratio_type' column
+    in ps_amendments (e.g. 'dr_ratio_fym', 'dr_ratio_wood', 'dr_ratio_annuals').
     
     Args:
         cases_treatments_df (pd.DataFrame): DataFrame with treatment info per case
-        ps_amendments (pd.DataFrame): DataFrame with amendment parameters
+        ps_amendments (pd.DataFrame): DataFrame with amendment parameters (must include 'dr_ratio_type')
+        ps_general (pd.DataFrame): DataFrame with general parameters (used to look up dr_ratio values)
     
     Returns:
-        pd.DataFrame: DataFrame with calculated carbon inputs (case, group, c_input_amend_t_ha)
+        pd.DataFrame: DataFrame with calculated carbon inputs:
+            - c_input_amend_t_ha: total amendment C input
+            - dr_ratio_amend: C-weighted effective DPM/RPM ratio across all amendments in each subcase
     """
     
     df = cases_treatments_df.copy()
     df['c_input_amend_t_ha'] = 0.0
+    df['dr_ratio_amend'] = 0.0
     
     # Process each row
     for idx, row in df.iterrows():
         total_c_input = 0.0
+        total_dr_numerator = 0.0
         
         # Process both amendment slots
         for amend_num in [1, 2]:
@@ -300,11 +316,28 @@ def calc_c_amend(
             # Calculate carbon input
             c_input_t_ha = amend_dry_t_ha * amend_params['c_frac (kgC/kgDM)']
             total_c_input += c_input_t_ha
+            
+            # Look up amendment-specific DPM/RPM ratio by type
+            # Each amendment has a 'dr_ratio_type' (e.g. 'dr_ratio_fym', 'dr_ratio_wood', 'dr_ratio_annuals')
+            dr_ratio_type = amend_params['dr_ratio_type']
+            dr_ratio_row = ps_general[ps_general['name'] == dr_ratio_type]
+            if dr_ratio_row.empty:
+                raise ValueError(
+                    f"dr_ratio_type '{dr_ratio_type}' for amendment '{amend_name}' "
+                    f"not found in ps_general (subcase '{row['subcase']}')"
+                )
+            dr_ratio_value = dr_ratio_row['value'].values[0]
+            total_dr_numerator += c_input_t_ha * dr_ratio_value
         
         df.at[idx, 'c_input_amend_t_ha'] = round(total_c_input, 2)
+        # Weighted effective DPM/RPM ratio: sum(c_i * dr_i) / sum(c_i)
+        # Falls back to dr_ratio_annuals default (1.44) when no amendments present
+        df.at[idx, 'dr_ratio_amend'] = (
+            total_dr_numerator / total_c_input if total_c_input > 0 else 1.44
+        )
     
     # Return result with only needed columns
-    result = df[['subcase', 'c_input_amend_t_ha']].copy()
+    result = df[['subcase', 'c_input_amend_t_ha', 'dr_ratio_amend']].copy()
     return result
 
 
@@ -363,7 +396,8 @@ def calc_c_inputs(
     
     c_amend = calc_c_amend(
         cases_treatments_df=cases_treatments_df,
-        ps_amendments=ps_amendments
+        ps_amendments=ps_amendments,
+        ps_general=ps_general
     )
     
     # Merge all results
@@ -372,24 +406,25 @@ def calc_c_inputs(
         on=['subcase'],
         how='left'
     )
-    result = result.merge(c_amend[['subcase', 'c_input_amend_t_ha']], on=['subcase'], how='left')
+    result = result.merge(c_amend[['subcase', 'c_input_amend_t_ha', 'dr_ratio_amend']], on=['subcase'], how='left')
     
     # Fill NaN with 0
     result['c_input_tree_litter_t_ha'] = result['c_input_tree_litter_t_ha'].fillna(0)
     result['c_input_tree_prunings_t_ha'] = result['c_input_tree_prunings_t_ha'].fillna(0)
     result['c_input_amend_t_ha'] = result['c_input_amend_t_ha'].fillna(0)
+    result['dr_ratio_amend'] = result['dr_ratio_amend'].fillna(1.44)  # Default when no amendments
     result['c_input_grass_t_ha'] = result['c_input_grass_t_ha'].fillna(0)
     
-    # Get DPM/RPM ratios from ps_general
+    # Get DPM/RPM ratios from ps_general for non-amendment sources
     dr_ratio_annuals = ps_general[ps_general['name'] == 'dr_ratio_annuals']['value'].values[0]
     dr_ratio_treegrass = ps_general[ps_general['name'] == 'dr_ratio_treegrass']['value'].values[0]
     dr_ratio_wood = ps_general[ps_general['name'] == 'dr_ratio_wood']['value'].values[0]
-    dr_ratio_amend = ps_general[ps_general['name'] == 'dr_ratio_amend']['value'].values[0]
+    # Note: amendments use their own per-row effective dr_ratio_amend computed in calc_c_amend.
     
-    # Calculate weighted DPM/RPM ratio
-    # DPM/RPM = (C_annuals * dr_annuals + C_grass * dr_treegrass +
-    #            C_tree_litter * dr_treegrass + C_tree_prunings * dr_wood +
-    #            C_amend * dr_amend) / C_total
+    # Calculate weighted DPM/RPM ratio — all sources follow the same pattern: C * dr_ratio
+    # DPM/RPM = (C_annuals*dr_annuals + C_grass*dr_treegrass +
+    #            C_tree_litter*dr_treegrass + C_tree_prunings*dr_wood +
+    #            C_amend*dr_ratio_amend) / C_total
     result['c_input_t_ha'] = (
         result['c_input_annuals_t_ha'] + 
         result['c_input_grass_t_ha'] + 
@@ -403,7 +438,7 @@ def calc_c_inputs(
          result['c_input_grass_t_ha'] * dr_ratio_treegrass +
          result['c_input_tree_litter_t_ha'] * dr_ratio_treegrass +
          result['c_input_tree_prunings_t_ha'] * dr_ratio_wood +
-         result['c_input_amend_t_ha'] * dr_ratio_amend) /
+         result['c_input_amend_t_ha'] * result['dr_ratio_amend']) /
         result['c_input_t_ha']
     ).where(result['c_input_t_ha'] > 0, 1.44)  # Default to annuals ratio if no inputs
     
@@ -412,6 +447,7 @@ def calc_c_inputs(
     result['dpm_rpm_ratio'] = result['dpm_rpm_ratio'].round(3)
     
     # Return final result
+    # Drop intermediate column before returning
     result = result[['subcase', 'c_input_annuals_t_ha', 'c_input_grass_t_ha',
                      'c_input_tree_litter_t_ha', 'c_input_tree_prunings_t_ha',
                      'c_input_amend_t_ha',

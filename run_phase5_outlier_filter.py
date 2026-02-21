@@ -49,7 +49,7 @@ PHASE4_PARAMS = {
     'dr_ratio_annuals':       3.4995,
     'dr_ratio_treegrass':     0.3020,
     'dr_ratio_wood':          0.1212,
-    'dr_ratio_amend':         1.9930,
+    'dr_ratio_fym':         1.9930,
     'plant_cover_modifier':   0.9961,
     'tree_fine_root_ratio':   0.0339,
     'grass_rs_ratio':         0.7146,
@@ -87,7 +87,7 @@ SUBRUN_DEFS = [
     {
         'name':   'Amendments',
         'groups': ['annuals_amend', 'perennials_amend'],
-        'params': ['dr_ratio_amend'],
+        'params': ['dr_ratio_fym'],
         'maxiter': 100,
         'popsize': 15,
     },

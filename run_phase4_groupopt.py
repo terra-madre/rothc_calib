@@ -20,7 +20,7 @@ Strategy:
                                               tree_fine_root_ratio
   Pasture  annuals_to_pasture                 grass_rs_ratio,         8
                                               map_to_prod
-  Amend    annuals_amend + perennials_amend   dr_ratio_amend         20
+  Amend    annuals_amend + perennials_amend   dr_ratio_fym         20
 
   After all 4 sub-runs, the optimized params are combined and evaluated
   globally (per-group metrics) to confirm improvement over Phase 3.
@@ -60,7 +60,7 @@ PHASE3_MEAN = {
     'dr_ratio_annuals':       3.4715,
     'dr_ratio_treegrass':     0.3279,
     'dr_ratio_wood':          0.2094,
-    'dr_ratio_amend':         0.7385,
+    'dr_ratio_fym':         0.7385,
     'plant_cover_modifier':   0.9961,
     'tree_fine_root_ratio':   0.0584,
     'grass_rs_ratio':         1.9730,
@@ -98,7 +98,7 @@ SUBRUN_DEFS = [
     {
         'name':   'Amendments',
         'groups': ['annuals_amend', 'perennials_amend'],
-        'params': ['dr_ratio_amend'],
+        'params': ['dr_ratio_fym'],
         'maxiter': 100,
         'popsize': 15,
     },

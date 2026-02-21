@@ -15,8 +15,6 @@ def prepare_cases_df(
 ):
     """Enrich the case table with optional preprocessing steps."""
 
-    cases_info_df = prepare_variables(cases_info_df)
-
     cases_info_df = fetch_soil_data(cases_info_df, loc_data_dir, soil_depth=soil_depth_cm)
 
     cases_info_df, climate_df = fetch_climate_data(
@@ -44,7 +42,7 @@ def prepare_cases_df(
     return cases_info_df, climate_df
 
 
-def prepare_variables(cases_info_df):
+def prepare_variables(cases_info_df, cases_treatments_df):
     """Prepare/clean variables in the cases_info_df as needed."""
     
     # Create 'lonlat' column with format: lon{rounded}_lat{rounded}
@@ -60,7 +58,13 @@ def prepare_variables(cases_info_df):
     }
     cases_info_df['land_use'] = cases_info_df['land_use'].map(land_use_mapping)
 
-    return cases_info_df
+    # Create a numeric sampling_depth_cm column from the last two characters of soil_sampling_cm (e.g., "0-30cm" -> 30)
+    cases_info_df['sampling_depth_cm'] = cases_info_df['soil_sampling_cm'].str.extract(r'(\d+)').astype(float)
+
+    # Create a 'subcase' column in cases_treatments_df by concatenating 'case' and first letter of group. 
+    cases_treatments_df['subcase'] = cases_treatments_df['case'].astype(str) + cases_treatments_df['group'].str[0]
+
+    return cases_info_df, cases_treatments_df
 
 
 def fetch_soil_data(cases_info_df, loc_data_dir, soil_depth=30, out_csv_path=None):

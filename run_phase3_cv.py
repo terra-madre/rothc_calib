@@ -35,7 +35,7 @@ PHASE2_BEST = np.array([
     3.489367,   # dr_ratio_annuals
     0.305041,   # dr_ratio_treegrass
     0.275310,   # dr_ratio_wood
-    1.452270,   # dr_ratio_amend
+    1.452270,   # dr_ratio_fym
     0.999,      # plant_cover_modifier (was 1.0, nudged from upper bound 1.0)
     0.050,      # tree_fine_root_ratio (now within bounds 0.03-0.2)
     1.995390,   # grass_rs_ratio

@@ -221,16 +221,17 @@ def apply_param_updates(params, data):
             ps_general = update_param_df(ps_general, name, value)
             
         elif source == 'ps_herbaceous':
-            if name == 'grass_rs_ratio':
-                ps_herbaceous = update_herbaceous_param(
-                    ps_herbaceous, 'grassland - permanent grasses or shrubs', 
-                    'r_s_ratio (kg/kg)', value
-                )
-            elif name == 'cover_crop_rs_ratio':
+            if name == 'cover_crop_rs_ratio':
                 for cc_type in COVER_CROP_TYPES:
                     ps_herbaceous = update_herbaceous_param(
                         ps_herbaceous, cc_type, 'r_s_ratio (kg/kg)', value
                     )
+            elif name == 'turnover_bg_grass':
+                # Grassland belowground biomass turnover rate
+                ps_herbaceous = update_herbaceous_param(
+                    ps_herbaceous, 'grassland - permanent grasses or shrubs',
+                    'turnover_bg (y-1)', value
+                )
                 
         elif source == 'ps_trees':
             if name == 'tree_fine_root_ratio':
