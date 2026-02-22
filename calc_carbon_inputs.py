@@ -131,7 +131,7 @@ def calc_c_herb(
                 agb_t_ha = total_biomass_tdm_ha
             else:
                 # Method 2: Use mean annual precipitation (map_mm) functions
-                agb_t_ha = map_mm * grass_anpp_a + grass_anpp_b * (map_mm ** 2) / 100  # Convert g/m2 to t/ha
+                agb_t_ha = (map_mm * grass_anpp_a + grass_anpp_b * (map_mm ** 2)) / 100  # Convert g/m2 to t/ha
             
             bgb_t_ha = agb_t_ha * cc_params['r_s_ratio (kg/kg)']
             agb_input_t_ha = agb_t_ha * frac_remaining
@@ -157,10 +157,9 @@ def calc_c_herb(
 
             # For grassland, we calculate root to shoot ratio based on precipitation
             r_s_ratio = grass_rsr_a * exp(map_mm * grass_rsr_b)  # Exponential function of precipitation
-            print(f"Calculated grass R/S ratio for map_mm={map_mm}: {r_s_ratio:.2f}")
             
             # Calculate biomass using precipitation productivity with modifier
-            agb_t_ha = map_mm * grass_anpp_a + grass_anpp_b * (map_mm ** 2) / 100  # Convert g/m2 to t/ha
+            agb_t_ha = (map_mm * grass_anpp_a + grass_anpp_b * (map_mm ** 2)) / 100  # Convert g/m2 to t/ha
             bgb_t_ha = agb_t_ha * r_s_ratio
             
             agb_input_t_ha = agb_t_ha * frac_remaining

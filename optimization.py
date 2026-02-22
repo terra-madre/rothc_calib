@@ -151,6 +151,7 @@ def update_herbaceous_param(df, group_cover, param_col, new_value):
     df = df.copy()
     mask = df['group_cover'] == group_cover
     if mask.any():
+        df[param_col] = df[param_col].astype(float)
         df.loc[mask, param_col] = new_value
     return df
 
@@ -168,6 +169,7 @@ def update_tree_param(df, param_col, new_value, species=None):
         DataFrame with updated value
     """
     df = df.copy()
+    df[param_col] = df[param_col].astype(float)
     if species is not None:
         mask = df['species'] == species
         df.loc[mask, param_col] = new_value
@@ -191,6 +193,7 @@ def update_management_param(df, management_type, param_col, new_value):
     df = df.copy()
     mask = df['management'] == management_type
     if mask.any():
+        df[param_col] = df[param_col].astype(float)
         df.loc[mask, param_col] = new_value
     return df
 
@@ -286,7 +289,7 @@ def precompute_data(repo_root=None, soil_depth_cm=30):
     
     # Load case data
     cases_info_df = pd.read_csv(proc_data_dir / "cases_info.csv")
-    cases_treatments_df = pd.read_csv(input_dir / "raw" / "cases_treatments.csv")
+    cases_treatments_df = pd.read_csv(proc_data_dir / "cases_treatments.csv")
     climate_df = pd.read_csv(loc_data_dir / "rothc_climate_avg.csv")
     st_yields_all = pd.read_csv(loc_data_dir / "st_yields_selected.csv")
     

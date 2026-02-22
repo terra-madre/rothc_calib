@@ -36,8 +36,8 @@ def run_rothc(
 
         # Get start year and duration
         start_year = 1
-        duration_years = int(case_info['duration_years'])
-        nsteps = duration_years * 12  # Convert years to months
+        years_treatment = int(case_info['years_treatment'])
+        nsteps = years_treatment * 12  # Convert years to months
 
         # Prepare monthly climate data (single year, 12 months)
         # Ensure we have exactly 12 months of climate data

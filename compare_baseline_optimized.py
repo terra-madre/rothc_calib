@@ -61,7 +61,7 @@ def main():
     comparison['improvement'] = abs(comparison['resid_baseline']) - abs(comparison['resid_optimized'])
     
     # Add group info
-    cases_info = data['cases_info_df'][['case', 'group_calib', 'duration_years']]
+    cases_info = data['cases_info_df'][['case', 'group_calib', 'years_treatment']]
     comparison = comparison.merge(cases_info, on='case')
     
     # Summary statistics

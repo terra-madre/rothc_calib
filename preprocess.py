@@ -9,7 +9,6 @@ def prepare_cases_df(
     cases_info_df,
     input_dir,
     loc_data_dir,
-    proc_data_dir,
     soil_depth_cm=30,
     nuts_version='2024'
 ):
@@ -36,9 +35,6 @@ def prepare_cases_df(
         strict=True,
     )
 
-    # Save processed cases table
-    cases_info_df.to_csv(proc_data_dir / "cases_info.csv", index=False)
-
     return cases_info_df, climate_df
 
 
@@ -58,8 +54,9 @@ def prepare_variables(cases_info_df, cases_treatments_df):
     }
     cases_info_df['land_use'] = cases_info_df['land_use'].map(land_use_mapping)
 
-    # Create a numeric sampling_depth_cm column from the last two characters of soil_sampling_cm (e.g., "0-30cm" -> 30)
-    cases_info_df['sampling_depth_cm'] = cases_info_df['soil_sampling_cm'].str.extract(r'(\d+)').astype(float)
+    # Create a numeric sampling_depth_cm column from soil_sampling_cm (e.g., "0-30cm" -> 30)
+    # Use last number in the string to get the lower depth bound
+    cases_info_df['sampling_depth_cm'] = cases_info_df['soil_sampling_cm'].str.extract(r'(\d+)(?:cm)?$').astype(float)
 
     # Create a 'subcase' column in cases_treatments_df by concatenating 'case' and first letter of group. 
     cases_treatments_df['subcase'] = cases_treatments_df['case'].astype(str) + cases_treatments_df['group'].str[0]

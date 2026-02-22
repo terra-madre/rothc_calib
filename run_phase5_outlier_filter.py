@@ -220,7 +220,7 @@ def main():
     # ── Load data ─────────────────────────────────────────────────────────────
     print("\nLoading data...")
     data = precompute_data(repo_root=BASE_DIR)
-    cases_info = data['cases_info_df'][['case', 'group_calib', 'duration_years']].copy()
+    cases_info = data['cases_info_df'][['case', 'group_calib', 'years_treatment']].copy()
     n_total = len(cases_info)
     print(f"Loaded {n_total} cases")
 
@@ -254,7 +254,7 @@ def main():
           f"{'Resid':>7} {'AE':>6} {'Thresh':>7}")
     print("  " + "-" * 72)
     for _, row in outliers.iterrows():
-        print(f"  {int(row['case']):>5} {row['group_calib']:<25} {int(row['duration_years']):>4} "
+        print(f"  {int(row['case']):>5} {row['group_calib']:<25} {int(row['years_treatment']):>4} "
               f"{row['observed']:>7.3f} {row['predicted']:>7.3f} "
               f"{row['residual']:>+7.3f} {row['abs_error']:>6.3f} {row['threshold']:>7.3f}")
 
@@ -401,7 +401,7 @@ def main():
     out_dir = BASE_DIR / "outputs"
 
     # Outlier list
-    out_cols = ['case', 'group_calib', 'duration_years', 'observed', 'predicted',
+    out_cols = ['case', 'group_calib', 'years_treatment', 'observed', 'predicted',
                 'residual', 'abs_error', 'threshold', 'obs_std']
     outliers[out_cols].to_csv(out_dir / "phase5_outliers.csv", index=False, float_format='%.4f')
     print(f"\nOutlier list saved to: outputs/phase5_outliers.csv")

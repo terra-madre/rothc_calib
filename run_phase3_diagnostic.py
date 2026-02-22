@@ -86,7 +86,7 @@ def main():
 
     print("\nLoading data...")
     data = precompute_data(repo_root=BASE_DIR)
-    cases_meta = data['cases_info_df'][['case', 'group_calib', 'duration_years']].copy()
+    cases_meta = data['cases_info_df'][['case', 'group_calib', 'years_treatment']].copy()
 
     # ── Get predictions ──────────────────────────────────────────────────────
     print("\nRunning model with Phase 3 mean parameters...")
@@ -153,7 +153,7 @@ def main():
     print("TOP 20 LARGEST ABSOLUTE ERRORS (Phase 3 params)")
     print("=" * 70)
     worst = df.nlargest(20, 'ae_p3')[
-        ['case', 'group_calib', 'duration_years', 'observed', 'pred_p3', 'resid_p3', 'ae_p3']
+        ['case', 'group_calib', 'years_treatment', 'observed', 'pred_p3', 'resid_p3', 'ae_p3']
     ]
     print(worst.to_string(index=False, float_format=lambda x: f'{x:.3f}'))
 
@@ -180,7 +180,7 @@ def main():
 
     # ── Save full case-level results ──────────────────────────────────────────
     out_path = BASE_DIR / "outputs" / "phase3_diagnostic.csv"
-    save_cols = ['case', 'group_calib', 'duration_years',
+    save_cols = ['case', 'group_calib', 'years_treatment',
                  'observed', 'pred_def', 'pred_p2', 'pred_p3',
                  'resid_def', 'resid_p2', 'resid_p3',
                  'ae_def', 'ae_p2', 'ae_p3']

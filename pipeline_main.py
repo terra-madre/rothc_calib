@@ -24,6 +24,8 @@ output_dir.mkdir(parents=True, exist_ok=True)
 
 do_preprocess_cases = True  # Whether to run the preprocessing step (fetching/enriching data for cases)
 do_get_st_yields = True  # Whether to calculate st_yields (can be time-consuming)
+do_rothc_run = False  # Whether to run the RothC model (after calculating inputs and pools)
+
 soil_depth = 30  # Soil depth in cm
 climate_out_file = loc_data_dir / "rothc_climate_avg.csv"
 
@@ -46,14 +48,18 @@ if do_preprocess_cases:
         cases_info_df,
         input_dir=input_dir,
         loc_data_dir=loc_data_dir,
-        proc_data_dir=proc_data_dir,
         soil_depth_cm=soil_depth,
         nuts_version='2024'
     )
 
+    # Save processed cases table
+    cases_info_df.to_csv(proc_data_dir / "cases_info.csv", index=False)
+    cases_treatments_df.to_csv(proc_data_dir / "cases_treatments.csv", index=False)
+
 else:
     # Just load the preprocessed data
     cases_info_df = pd.read_csv(proc_data_dir / "cases_info.csv")
+    cases_treatments_df = pd.read_csv(proc_data_dir / "cases_treatments.csv")
     climate_df = pd.read_csv(climate_out_file)
 
 if do_get_st_yields:
@@ -66,73 +72,75 @@ else:
     st_yields_all = pd.read_csv(loc_data_dir / "st_yields_selected.csv")
 
 
-# Step 2: Calculate soil C inputs for each case
-carbon_inputs_df = step2.calc_c_inputs(
-    cases_treatments_df=cases_treatments_df,
-    cases_info_df=cases_info_df,
-    st_yields_all=st_yields_all,
-    ps_herbaceous=ps_herbaceous,
-    ps_management=ps_management,
-    ps_general=ps_general,
-    ps_trees=ps_trees,
-    ps_amendments=ps_amendments
-)
-# carbon_inputs_df.to_csv(proc_data_dir / "carbon_inputs.csv", index=False)
+if do_rothc_run:
+
+    # Step 2: Calculate soil C inputs for each case
+    carbon_inputs_df = step2.calc_c_inputs(
+        cases_treatments_df=cases_treatments_df,
+        cases_info_df=cases_info_df,
+        st_yields_all=st_yields_all,
+        ps_herbaceous=ps_herbaceous,
+        ps_management=ps_management,
+        ps_general=ps_general,
+        ps_trees=ps_trees,
+        ps_amendments=ps_amendments
+    )
+    # carbon_inputs_df.to_csv(proc_data_dir / "carbon_inputs.csv", index=False)
 
 
-# Step 3: Calculate initial soil carbon pools for each case
-initial_pools_df = step3.get_rothc_pools(cases_info_df, type="transient")
-# initial_pools_df.to_csv(proc_data_dir / "initial_pools.csv", index=False)
+    # Step 3: Calculate initial soil carbon pools for each case
+    initial_pools_df = step3.get_rothc_pools(cases_info_df, type="transient")
+    # initial_pools_df.to_csv(proc_data_dir / "initial_pools.csv", index=False)
 
-# # Display results
-# print("\n=== Carbon Inputs Summary ===")
-# print(carbon_inputs_df.head())
-# print(f"\nTotal rows: {len(carbon_inputs_df)}")
-# print(f"\nC input statistics (t/ha):")
-# print(carbon_inputs_df['c_input_t_ha'].describe())
-# print(f"\nDPM/RPM ratio statistics:")
-# print(carbon_inputs_df['dpm_rpm_ratio'].describe())
+    # # Display results
+    # print("\n=== Carbon Inputs Summary ===")
+    # print(carbon_inputs_df.head())
+    # print(f"\nTotal rows: {len(carbon_inputs_df)}")
+    # print(f"\nC input statistics (t/ha):")
+    # print(carbon_inputs_df['c_input_t_ha'].describe())
+    # print(f"\nDPM/RPM ratio statistics:")
+    # print(carbon_inputs_df['dpm_rpm_ratio'].describe())
 
-# print("\n=== Initial Pools Summary ===")
-# print(initial_pools_df.head())
+    # print("\n=== Initial Pools Summary ===")
+    # print(initial_pools_df.head())
 
-# print("\nProcessing complete!")
-
-
-# Step 4: Calculate plant cover for each case
-plant_cover_df = step4.plant_cover(cases_treatments_df)
-plant_cover_df.to_csv(proc_data_dir / "plant_cover.csv", index=False)
+    # print("\nProcessing complete!")
 
 
-# Step 5: Run RothC model for each case and compile results
-rothc_yearly_results, rothc_monthly_results = step5.run_rothc(
-    cases_treatments_df=cases_treatments_df,
-    cases_info_df=cases_info_df,
-    climate_df=climate_df,
-    carbon_inputs_df=carbon_inputs_df,
-    initial_pools_df=initial_pools_df,
-    plant_cover_df=plant_cover_df,
-    soil_depth_cm=soil_depth
-)
-rothc_monthly_results.to_csv(output_dir / "rothc_monthly_results.csv", index=False)
-rothc_yearly_results.to_csv(output_dir / "rothc_yearly_results.csv", index=False)
+    # Step 4: Calculate plant cover for each case
+    plant_cover_df = step4.plant_cover(cases_treatments_df)
+    plant_cover_df.to_csv(proc_data_dir / "plant_cover.csv", index=False)
 
-# Step 6: Calculate treatment-control differences
-deltas_df = step6.calc_deltas(rothc_yearly_results)
-deltas_df.to_csv(output_dir / "rothc_deltas.csv", index=False)
 
-# Merge deltas with observed data by case and calculate the differences between observed and predicted deltas
-comparison_df = deltas_df.merge(
-    cases_info_df[['case', 'delta_soc_t_ha_y']], 
-    on='case', 
-    how='left'
-)
+    # Step 5: Run RothC model for each case and compile results
+    rothc_yearly_results, rothc_monthly_results = step5.run_rothc(
+        cases_treatments_df=cases_treatments_df,
+        cases_info_df=cases_info_df,
+        climate_df=climate_df,
+        carbon_inputs_df=carbon_inputs_df,
+        initial_pools_df=initial_pools_df,
+        plant_cover_df=plant_cover_df,
+        soil_depth_cm=soil_depth
+    )
+    rothc_monthly_results.to_csv(output_dir / "rothc_monthly_results.csv", index=False)
+    rothc_yearly_results.to_csv(output_dir / "rothc_yearly_results.csv", index=False)
 
-# Calculate residuals (observed - predicted)
-comparison_df['residual'] = comparison_df['delta_soc_t_ha_y'] - comparison_df['delta_treatment_control_per_year']
-comparison_df['residual_sq'] = comparison_df['residual'] ** 2
+    # Step 6: Calculate treatment-control differences
+    deltas_df = step6.calc_deltas(rothc_yearly_results)
+    deltas_df.to_csv(output_dir / "rothc_deltas.csv", index=False)
 
-# Calculate calibration metrics
-rmse = (comparison_df['residual_sq'].mean()) ** 0.5
-mae = comparison_df['residual'].abs().mean()
-bias = comparison_df['residual'].mean()
+    # Merge deltas with observed data by case and calculate the differences between observed and predicted deltas
+    comparison_df = deltas_df.merge(
+        cases_info_df[['case', 'delta_soc_t_ha_y']], 
+        on='case', 
+        how='left'
+    )
+
+    # Calculate residuals (observed - predicted)
+    comparison_df['residual'] = comparison_df['delta_soc_t_ha_y'] - comparison_df['delta_treatment_control_per_year']
+    comparison_df['residual_sq'] = comparison_df['residual'] ** 2
+
+    # Calculate calibration metrics
+    rmse = (comparison_df['residual_sq'].mean()) ** 0.5
+    mae = comparison_df['residual'].abs().mean()
+    bias = comparison_df['residual'].mean()
