@@ -29,13 +29,13 @@ from optimization import precompute_data, objective, PARAM_CONFIG
 # ── Configuration ────────────────────────────────────────────────────────────
 
 BASE_DIR   = Path(__file__).parent.parent
-OUTPUT_PNG = BASE_DIR / "outputs" / "obs_vs_pred_all_phases.png"
+OUTPUT_PNG = BASE_DIR / "outputs" / "obs_vs_pred_phase2.png"
 
 # Which param sets to show: (label, csv filename, marker, linestyle)
 PARAM_SETS = [
-    ("Default", None,                         "s", "--"),   # None = use PARAM_CONFIG defaults
-    ("Phase 4", "phase4_final_params.csv",    "o", "-"),
-    ("Phase 5", "phase5_final_params.csv",    "^", ":"),
+    ("Default",     None,                           "s", "--"),   # None = use PARAM_CONFIG defaults
+    ("P2 Tier1",    "phase2_tier1_params.csv",      "o", "-"),
+    ("P2 Tier1_T2", "phase2_tier1tier2_params.csv", "^", ":"),
 ]
 
 MS        = 32    # marker size
@@ -104,7 +104,7 @@ for label, csv_name, _marker, _ls in PARAM_SETS:
 
 # ── Build master frame sorted by group / observed ────────────────────────────
 
-p4_label = PARAM_SETS[1][0]   # "Phase 4" — reference for group annotations
+p4_label = PARAM_SETS[2][0]   # "P2 Tier1_T2" — reference for group annotations
 base_df  = predictions[p4_label][["case", "observed", "group_calib"]].copy()
 base_df["group_order"] = base_df["group_calib"].map({g: i for i, g in enumerate(GROUP_ORDER)})
 base_df = base_df.sort_values(["group_order", "observed"]).reset_index(drop=True)
@@ -191,8 +191,8 @@ ax.set_yticklabels(base_df["case"].astype(str), fontsize=5.5)
 ax.axvline(0, color="black", lw=0.6, ls="--", alpha=0.35)
 ax.set_xlabel("Δ SOC  (t C ha⁻¹ yr⁻¹)", fontsize=10)
 ax.set_title(
-    "Observed vs Predicted ΔSoC — Default / Phase 4 / Phase 5\n"
-    "● observed  □ default  ○ Phase 4  △ Phase 5",
+    "Observed vs Predicted ΔSoC — Default / Phase 2 Tier1 / Phase 2 Tier1+Tier2\n"
+    "● observed  □ default  ○ P2 Tier1  △ P2 Tier1_Tier2",
     fontsize=10,
 )
 ax.set_ylim(-0.5, base_df["y"].max() + 0.5)
