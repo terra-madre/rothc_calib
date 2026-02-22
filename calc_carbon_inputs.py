@@ -288,7 +288,7 @@ def calc_c_amend(
         # Process both amendment slots
         for amend_num in [1, 2]:
             amend_name_col = f'amend{amend_num}_name'
-            amend_fresh_col = f'amend{amend_num}_fresh_t_ha_y'
+            amend_fresh_col = f'amend{amend_num}_fresh_t_ha_yr'
             
             # Check if columns exist
             if amend_name_col not in row or amend_fresh_col not in row:
