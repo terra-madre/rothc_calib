@@ -9,7 +9,8 @@ def run_rothc(
         initial_pools_df,
         plant_cover_df,
         soil_depth_cm=30,
-        plant_cover_modifier=0.6
+        plant_cover_modifier=0.6,
+        decomp_mod=1.0
     ):
     """
     Run RothC model for all cases, looping over a single year of averaged climate data.
@@ -86,7 +87,8 @@ def run_rothc(
             
             # Run RothC for this month
             rothc(12, DPM, RPM, BIO, HUM, IOM, SOC, clay, depth, TEMP, RAIN, PEVAP, 
-                  PC, DPM_RPM, C_Inp, FYM_Inp, SWC, RM_TILL=1.0, pc_modifier=plant_cover_modifier)
+                  PC, DPM_RPM, C_Inp, FYM_Inp, SWC, RM_TILL=1.0, pc_modifier=plant_cover_modifier,
+                  decomp_mod=decomp_mod)
             
             # Store monthly results
             all_months_list.append([subcase_id, case_id, group, current_year, current_month, 

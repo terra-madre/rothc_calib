@@ -78,16 +78,52 @@ def run_de(set_name, param_names, data, maxiter, popsize, seed=42):
     }
 
 
+def save_checkpoint(result, baseline_rmse, ckpt_dir, param_config):
+    """Save a single set's result as a checkpoint JSON."""
+    import json
+    ckpt_dir.mkdir(parents=True, exist_ok=True)
+    ckpt_file = ckpt_dir / f"{result['set_name']}.json"
+    imp = (baseline_rmse - result['rmse']) / baseline_rmse * 100
+    payload = {
+        'set_name': result['set_name'],
+        'rmse': result['rmse'],
+        'baseline_rmse': baseline_rmse,
+        'improvement_pct': imp,
+        'time_s': result['time_s'],
+        'func_calls': result['func_calls'],
+        'success': result['success'],
+        'message': result['message'],
+        'params': result['params'],
+    }
+    with open(ckpt_file, 'w') as f:
+        json.dump(payload, f, indent=2)
+    print(f"  [checkpoint saved → {ckpt_file.name}]")
+
+
+def load_checkpoint(set_name, ckpt_dir):
+    """Return saved result dict if checkpoint exists, else None."""
+    import json
+    ckpt_file = ckpt_dir / f"{set_name}.json"
+    if ckpt_file.exists():
+        with open(ckpt_file) as f:
+            return json.load(f)
+    return None
+
+
 if __name__ == "__main__":
     BASE_DIR = Path(__file__).parent.parent
-    
+
     maxiter = int(OPTIM_SETTINGS.get('maxiter', 30))
     popsize = int(OPTIM_SETTINGS.get('popsize', 8))
     seed = int(OPTIM_SETTINGS.get('seed', 42))
-    
+
     print("Phase 2: Differential Evolution Tests")
     print(f"Settings: maxiter={maxiter}, popsize={popsize}, seed={seed}")
-    
+
+    output_dir = BASE_DIR / "outputs"
+    output_dir.mkdir(exist_ok=True)
+    ckpt_dir = output_dir / "phase2_de_checkpoints"
+
     print("\nLoading data...")
     data = precompute_data(repo_root=BASE_DIR)
     n_cases = len(data['cases_info_df'])
@@ -100,16 +136,33 @@ if __name__ == "__main__":
     # Run DE on selected sets (ordered by param count for runtime)
     sets_to_test = ['Amendments', 'Annuals', 'Pasture', 'Trees',
                     'Tier1', 'Tier1_Tier2']
-    
+
     all_results = []
     for set_name in sets_to_test:
         if set_name not in PARAM_SETS:
             print(f"WARNING: {set_name} not found in PARAM_SETS, skipping")
             continue
+
+        # Resume: skip if checkpoint already exists
+        existing = load_checkpoint(set_name, ckpt_dir)
+        if existing is not None:
+            print(f"\n[RESUME] {set_name}: checkpoint found — RMSE={existing['rmse']:.4f}, skipping.")
+            all_results.append({
+                'set_name': existing['set_name'],
+                'rmse': existing['rmse'],
+                'time_s': existing['time_s'],
+                'func_calls': existing['func_calls'],
+                'success': existing['success'],
+                'message': existing['message'],
+                'params': existing['params'],
+            })
+            continue
+
         param_names = PARAM_SETS[set_name]
         result = run_de(set_name, param_names, data, maxiter, popsize, seed)
+        save_checkpoint(result, baseline_rmse, ckpt_dir, PARAM_CONFIG)
         all_results.append(result)
-    
+
     # Summary
     print(f"\n{'='*70}")
     print("SUMMARY")
@@ -119,11 +172,8 @@ if __name__ == "__main__":
     for r in sorted(all_results, key=lambda x: x['rmse']):
         imp = (baseline_rmse - r['rmse']) / baseline_rmse * 100
         print(f"{r['set_name']:20s} | {r['rmse']:7.4f} | {imp:+7.1f}% | {r['time_s']:6.0f}s | {r['func_calls']:6d}")
-    
-    # Save summary
-    output_dir = BASE_DIR / "outputs"
-    output_dir.mkdir(exist_ok=True)
-    
+
+    # Save summary CSVs
     summary_rows = []
     detail_rows = []
     for r in all_results:
@@ -151,7 +201,7 @@ if __name__ == "__main__":
                 'bound_max': PARAM_CONFIG[pname]['bounds'][1],
                 'pct_change': (pval - PARAM_CONFIG[pname]['default']) / PARAM_CONFIG[pname]['default'] * 100
             })
-    
+
     pd.DataFrame(summary_rows).to_csv(output_dir / "phase2_de_summary.csv", index=False)
     pd.DataFrame(detail_rows).to_csv(output_dir / "phase2_de_params.csv", index=False)
     print(f"\nSaved: outputs/phase2_de_summary.csv, outputs/phase2_de_params.csv")

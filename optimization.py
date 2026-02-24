@@ -252,7 +252,7 @@ def apply_param_updates(params, data):
                     'frac_remaining', value
                 )
         
-        # 'rothc' source params (e.g. plant_cover_modifier) are handled
+        # 'rothc' source params (e.g. plant_cover_modifier, decomp_mod) are handled
         # directly in the objective function when calling run_rothc
     
     return {
@@ -375,8 +375,9 @@ def objective(param_values, param_names, data, case_subset=None, return_details=
         ps_amendments=data['ps_amendments']
     )
     
-    # Get plant_cover_modifier if being optimized (default 0.6)
+    # Get rothc-level params if being optimized
     plant_cover_modifier = params.get('plant_cover_modifier', 0.6)
+    decomp_mod = params.get('decomp_mod', 1.0)
     
     # Step 5: Run RothC
     yearly_results, _ = step5.run_rothc(
@@ -387,7 +388,8 @@ def objective(param_values, param_names, data, case_subset=None, return_details=
         initial_pools_df=initial_pools_df,
         plant_cover_df=plant_cover_df,
         soil_depth_cm=data['soil_depth_cm'],
-        plant_cover_modifier=plant_cover_modifier
+        plant_cover_modifier=plant_cover_modifier,
+        decomp_mod=decomp_mod
     )
     
     # Step 6: Calculate deltas
@@ -426,7 +428,7 @@ def objective(param_values, param_names, data, case_subset=None, return_details=
 # =============================================================================
 
 def run_optimization(param_names, data, case_subset=None, method=None, 
-                     maxiter=None, popsize=None, verbose=True):
+                     maxiter=None, popsize=None, x0_warmstart=None, verbose=True):
     """Run parameter optimization.
     
     Settings default to values from OPTIM_SETTINGS (inputs/optimization/optim_settings.csv).
@@ -438,6 +440,7 @@ def run_optimization(param_names, data, case_subset=None, method=None,
         method: Optimization method (default: from optim_settings)
         maxiter: Maximum iterations (default: from optim_settings)
         popsize: DE population size multiplier (default: from optim_settings)
+        x0_warmstart: Optional dict {param_name: value} to override default initial values
         verbose: Print progress
     
     Returns:
@@ -450,7 +453,8 @@ def run_optimization(param_names, data, case_subset=None, method=None,
     if popsize is None:
         popsize = OPTIM_SETTINGS.get('popsize', 15)
     # Get initial values and bounds
-    x0 = [PARAM_CONFIG[p]['default'] for p in param_names]
+    x0 = [x0_warmstart.get(p, PARAM_CONFIG[p]['default']) if x0_warmstart else PARAM_CONFIG[p]['default']
+          for p in param_names]
     bounds = [PARAM_CONFIG[p]['bounds'] for p in param_names]
     
     if verbose:

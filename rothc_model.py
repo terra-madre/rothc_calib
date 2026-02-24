@@ -148,7 +148,7 @@ def decomp(timeFact, DPM, RPM, BIO, HUM, IOM, SOC, RateM, clay, C_Inp, FYM_Inp, 
     return
 
 
-def rothc(timeFact, DPM, RPM, BIO, HUM, IOM, SOC, clay, depth, TEMP, RAIN, PEVAP, PC, DPM_RPM, C_Inp, FYM_Inp, SWC, RM_TILL=1.0, pc_modifier=0.6):     
+def rothc(timeFact, DPM, RPM, BIO, HUM, IOM, SOC, clay, depth, TEMP, RAIN, PEVAP, PC, DPM_RPM, C_Inp, FYM_Inp, SWC, RM_TILL=1.0, pc_modifier=0.6, decomp_mod=1.0):     
      
     # Calculate RMFs     
     RM_TMP = RMF_Tmp(TEMP)
@@ -156,7 +156,7 @@ def rothc(timeFact, DPM, RPM, BIO, HUM, IOM, SOC, clay, depth, TEMP, RAIN, PEVAP
     RM_PC = RMF_PC(PC, pc_modifier)
 
     # Combine RMF's into one.      
-    RateM = RM_TMP*RM_Moist*RM_PC*RM_TILL
+    RateM = RM_TMP*RM_Moist*RM_PC*RM_TILL*decomp_mod
     # print(f"\ntimeFact={timeFact}, DPM={DPM[0]:.2f}, RPM={RPM[0]:.2f}, BIO={BIO[0]:.2f}, HUM={HUM[0]:.2f}, IOM={IOM[0]:.2f}, SOC={SOC[0]:.2f}, "
     #       f"RateM={RateM:.2f}, clay={clay:.2f}, C_Inp={C_Inp:.2f}, FYM_Inp={FYM_Inp:.2f}, DPM_RPM={DPM_RPM:.2f}")
     decomp(timeFact, DPM, RPM, BIO, HUM, IOM, SOC, RateM, clay, C_Inp, FYM_Inp, DPM_RPM)
@@ -164,7 +164,7 @@ def rothc(timeFact, DPM, RPM, BIO, HUM, IOM, SOC, clay, depth, TEMP, RAIN, PEVAP
     return
 
 
-def rothc_spinup(som, clay, depth, monthly):
+def rothc_spinup(som, clay, depth, monthly, decomp_mod=1.0):
     """Run RothC model to equilibrium to calculate initial soil carbon pools.
     
     Runs the model iteratively until carbon pools stabilize (test < 1E-6).
@@ -221,7 +221,7 @@ def rothc_spinup(som, clay, depth, monthly):
         C_Inp = monthly.t_C_Inp[k]
         FYM_Inp = monthly.t_FYM_Inp[k]
 
-        rothc(timeFact, DPM, RPM, BIO, HUM, IOM, SOC, clay, depth, TEMP, RAIN, PEVAP, PC, DPM_RPM, C_Inp, FYM_Inp, SWC)  
+        rothc(timeFact, DPM, RPM, BIO, HUM, IOM, SOC, clay, depth, TEMP, RAIN, PEVAP, PC, DPM_RPM, C_Inp, FYM_Inp, SWC, decomp_mod=decomp_mod)  
             
         # Each year calculates the difference between the previous year and current year (counter =12 monthly model)
         if (np.mod(k+1, timeFact)== 0):
@@ -240,7 +240,7 @@ def rothc_spinup(som, clay, depth, monthly):
     }
     return results
 
-def rothc_transient(year, clay, depth, monthly, initial_pools, tillage_modifier=1.0):
+def rothc_transient(year, clay, depth, monthly, initial_pools, tillage_modifier=1.0, decomp_mod=1.0):
     """Run RothC model for a single year to calculate updated soil carbon pools.
     
     Advances soil carbon pools forward one year based on inputs, climate, and management.
@@ -292,7 +292,7 @@ def rothc_transient(year, clay, depth, monthly, initial_pools, tillage_modifier=
         C_Inp = monthly.t_C_Inp[i]
         FYM_Inp = monthly.t_FYM_Inp[i]
 
-        rothc(timeFact, DPM, RPM, BIO, HUM, IOM, SOC, clay, depth, TEMP, RAIN, PEVAP, PC, DPM_RPM, C_Inp, FYM_Inp, SWC, RM_TILL)  
+        rothc(timeFact, DPM, RPM, BIO, HUM, IOM, SOC, clay, depth, TEMP, RAIN, PEVAP, PC, DPM_RPM, C_Inp, FYM_Inp, SWC, RM_TILL, decomp_mod=decomp_mod)  
 
     # Create a dictionary of results to return
     results = {
