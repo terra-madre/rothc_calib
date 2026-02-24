@@ -29,16 +29,17 @@ from optimization import precompute_data, objective, PARAM_CONFIG
 # ── Configuration ────────────────────────────────────────────────────────────
 
 BASE_DIR   = Path(__file__).parent.parent
-OUTPUT_PNG = BASE_DIR / "outputs" / "obs_vs_pred_phase2.png"
+OUTPUT_PNG = BASE_DIR / "outputs" / "obs_vs_pred_phase2_sequential.png"
 
 # Which param sets to show: (label, source, marker, linestyle)
 # source can be:
-#   None                          → PARAM_CONFIG defaults
-#   "<name>.csv"                  → outputs/<name>.csv  (columns: param, value)
-#   {"checkpoint": "<name>.json"} → outputs/phase2_de_checkpoints/<name>.json
+#   None                              → PARAM_CONFIG defaults
+#   "<name>.csv"                      → outputs/<name>.csv  (columns: param, value)
+#   {"checkpoint": "<name>.json"}     → outputs/phase2_de_checkpoints/<name>.json
+#   {"seq_checkpoint": "<name>.json"} → outputs/phase2_sequential_checkpoints/<name>.json
 PARAM_SETS = [
-    ("Default",    None,                                   "s", "--"),
-    ("Tier1_Tier2", {"checkpoint": "Tier1_Tier2.json"},    "o", "-"),
+    ("Default",    None,                                       "s", "--"),
+    ("Phase 2",    {"seq_checkpoint": "all.json"},             "o", "-"),
 ]
 
 MS        = 32    # marker size
@@ -46,23 +47,27 @@ MS_OBS    = 40    # observed slightly larger
 LW        = 0.7   # connector line width
 
 GROUP_ORDER = [
-    "annuals_covercrops",
-    "annuals_resid",
-    "annuals_amend",
-    "annuals_to_pasture",
-    "perennials_herb",
-    "perennials_herb+resid",
-    "perennials_amend",
+    "amendment",
+    "cropresid",
+    "covercrop",
+    "covercrop_amendment",
+    "covercrop_cropresid",
+    "covercrop_pruning",
+    "grass",
+    "grass_annuals",
+    "grass_pruning",
 ]
 
 GROUP_COLORS = {
-    "annuals_covercrops":    "#2196F3",
-    "annuals_resid":         "#00BCD4",
-    "annuals_amend":         "#4CAF50",
-    "annuals_to_pasture":    "#8BC34A",
-    "perennials_herb":       "#FF9800",
-    "perennials_herb+resid": "#F44336",
-    "perennials_amend":      "#9C27B0",
+    "amendment":            "#4CAF50",
+    "cropresid":            "#8BC34A",
+    "covercrop":            "#2196F3",
+    "covercrop_amendment":  "#00BCD4",
+    "covercrop_cropresid":  "#03A9F4",
+    "covercrop_pruning":    "#673AB7",
+    "grass":                "#FF9800",
+    "grass_annuals":        "#F44336",
+    "grass_pruning":        "#E91E63",
 }
 
 
@@ -82,6 +87,12 @@ def load_params(source):
     elif isinstance(source, dict) and "checkpoint" in source:
         ckpt = json.loads(
             (BASE_DIR / "outputs" / "phase2_de_checkpoints" / source["checkpoint"]).read_text()
+        )
+        names  = list(ckpt["params"].keys())
+        values = list(ckpt["params"].values())
+    elif isinstance(source, dict) and "seq_checkpoint" in source:
+        ckpt = json.loads(
+            (BASE_DIR / "outputs" / "phase2_sequential_checkpoints" / source["seq_checkpoint"]).read_text()
         )
         names  = list(ckpt["params"].keys())
         values = list(ckpt["params"].values())
@@ -206,8 +217,8 @@ ax.set_yticklabels(base_df["case"].astype(str), fontsize=5.5)
 ax.axvline(0, color="black", lw=0.6, ls="--", alpha=0.35)
 ax.set_xlabel("Δ SOC  (t C ha⁻¹ yr⁻¹)", fontsize=10)
 ax.set_title(
-    "Observed vs Predicted ΔSoC — Default vs Phase 2 Tier1+Tier2\n"
-    "● observed  □ default  ○ Tier1_Tier2",
+    "Observed vs Predicted ΔSoC — Default vs Phase 2 Sequential\n"
+    "● observed  □ default  ○ Phase 2 optimized",
     fontsize=10,
 )
 ax.set_ylim(-0.5, base_df["y"].max() + 0.5)

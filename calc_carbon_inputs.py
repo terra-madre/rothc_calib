@@ -12,7 +12,8 @@ def calc_c_herb(
     ps_herbaceous,
     ps_management,
     ps_general,
-    use_covercrop_yield=True
+    use_covercrop_yield=True,
+    cc_yield_mod=1.0
 ):
     """Calculate carbon inputs for RothC model based on treatments and case info.
     
@@ -132,6 +133,9 @@ def calc_c_herb(
             else:
                 # Method 2: Use mean annual precipitation (map_mm) functions
                 agb_t_ha = (map_mm * grass_anpp_a + grass_anpp_b * (map_mm ** 2)) / 100  # Convert g/m2 to t/ha
+            
+            # Apply cover crop yield modifier (scales both AGB and BGB via r_s_ratio)
+            agb_t_ha *= cc_yield_mod
             
             bgb_t_ha = agb_t_ha * cc_params['r_s_ratio (kg/kg)']
             agb_input_t_ha = agb_t_ha * frac_remaining
@@ -349,7 +353,8 @@ def calc_c_inputs(
     ps_general,
     ps_trees,
     ps_amendments,
-    use_covercrop_yield=False
+    use_covercrop_yield=False,
+    cc_yield_mod=1.0
 ):
     """Calculate total carbon inputs for RothC model with weighted DPM/RPM ratio.
     
@@ -384,7 +389,8 @@ def calc_c_inputs(
         ps_herbaceous=ps_herbaceous,
         ps_management=ps_management,
         ps_general=ps_general,
-        use_covercrop_yield=use_covercrop_yield
+        use_covercrop_yield=use_covercrop_yield,
+        cc_yield_mod=cc_yield_mod
     )
     
     c_tree = calc_c_tree(

@@ -104,13 +104,6 @@ PARAM_CONFIG = load_param_config()
 PARAM_SETS = load_param_sets()
 OPTIM_SETTINGS = load_optim_settings()
 
-# Cover crop types in ps_herbaceous
-COVER_CROP_TYPES = [
-    'cover crop - grass-legume mixture',
-    'cover crop - single or multiple grasses',
-    'cover crop - single or multiple legumes'
-]
-
 
 # =============================================================================
 # Parameter Update Helpers
@@ -224,12 +217,7 @@ def apply_param_updates(params, data):
             ps_general = update_param_df(ps_general, name, value)
             
         elif source == 'ps_herbaceous':
-            if name == 'cover_crop_rs_ratio':
-                for cc_type in COVER_CROP_TYPES:
-                    ps_herbaceous = update_herbaceous_param(
-                        ps_herbaceous, cc_type, 'r_s_ratio (kg/kg)', value
-                    )
-            elif name == 'turnover_bg_grass':
+            if name == 'turnover_bg_grass':
                 # Grassland belowground biomass turnover rate
                 ps_herbaceous = update_herbaceous_param(
                     ps_herbaceous, 'grassland - permanent grasses or shrubs',
@@ -253,7 +241,9 @@ def apply_param_updates(params, data):
                 )
         
         # 'rothc' source params (e.g. plant_cover_modifier, decomp_mod) are handled
-        # directly in the objective function when calling run_rothc
+        # directly in the objective function when calling run_rothc.
+        # 'calc_carbon_inputs' source params (e.g. cc_yield_mod) are also handled
+        # directly in the objective function when calling calc_c_inputs.
     
     return {
         'ps_general': ps_general,
@@ -372,7 +362,8 @@ def objective(param_values, param_names, data, case_subset=None, return_details=
         ps_management=ps_management,
         ps_general=ps_general,
         ps_trees=ps_trees,
-        ps_amendments=data['ps_amendments']
+        ps_amendments=data['ps_amendments'],
+        cc_yield_mod=params.get('cc_yield_mod', 1.0)
     )
     
     # Get rothc-level params if being optimized

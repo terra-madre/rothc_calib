@@ -9,7 +9,7 @@ Runs DE on each calibration group in sequence. Each run:
 Run order and group/parameter mapping:
   1. amendment        → dr_ratio_fym
   2. cropresid        → residue_frac_remaining
-  3. covercrop_all    → dr_ratio_annuals, cover_crop_rs_ratio, decomp_mod
+  3. covercrop_all    → dr_ratio_annuals, cc_yield_mod, decomp_mod
                         (groups: covercrop, covercrop_amendment, covercrop_cropresid)
   4. grass_all        → grass_rsr_b, turnover_bg_grass, dr_ratio_treegrass
                         (groups: grass, grass_annuals)
