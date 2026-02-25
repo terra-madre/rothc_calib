@@ -4,13 +4,14 @@ plot_obs_vs_pred.py
 Dumbbell chart comparing observed vs predicted delta SOC across parameter sets.
 
 Per case (one row):
-  ● filled circle  = observed
-  □ open square    = default parameters
-  ○ open circle    = Phase 4 (group-specific optimisation)
-  △ open triangle  = Phase 5 (outlier removal + re-optimisation)
+  ● filled circle   = observed (calibration / training case)
+  ◆ filled diamond  = observed (validation / test case)
+  □ open square     = default parameters
+  ○ open circle     = Phase 2 sequential optimisation
+  △ open triangle   = Cal-Val calibration set optimisation
 
 Color = calibration group. Case number shown to the left of each row.
-Group labels on the right show Phase 4 bias and RMSE (best overall result).
+Group labels on the right show Cal-Val bias and RMSE.
 
 Cases sorted by group (GROUP_ORDER) then by observed value within group.
 """
@@ -29,17 +30,18 @@ from optimization import precompute_data, objective, PARAM_CONFIG
 # ── Configuration ────────────────────────────────────────────────────────────
 
 BASE_DIR   = Path(__file__).parent.parent
-OUTPUT_PNG = BASE_DIR / "outputs" / "obs_vs_pred_phase2_sequential.png"
+OUTPUT_PNG = BASE_DIR / "outputs" / "obs_vs_pred_calval.png"
 
 # Which param sets to show: (label, source, marker, linestyle)
 # source can be:
-#   None                              → PARAM_CONFIG defaults
-#   "<name>.csv"                      → outputs/<name>.csv  (columns: param, value)
-#   {"checkpoint": "<name>.json"}     → outputs/phase2_de_checkpoints/<name>.json
-#   {"seq_checkpoint": "<name>.json"} → outputs/phase2_sequential_checkpoints/<name>.json
+#   None                               → PARAM_CONFIG defaults
+#   "<name>.csv"                       → outputs/<name>.csv  (columns: param, value)
+#   {"seq_checkpoint": "<name>.json"}  → outputs/phase2_sequential_checkpoints/<name>.json
+#   {"calval_checkpoint": "<name>.json"} → outputs/calval_checkpoints/<name>.json
 PARAM_SETS = [
-    ("Default",    None,                                       "s", "--"),
-    ("Phase 2",    {"seq_checkpoint": "all.json"},             "o", "-"),
+    ("Default",  None,                                          "s", "--"),
+    ("Phase 2",  {"seq_checkpoint":    "all.json"},             "o", "-"),
+    ("Cal-Val",  {"calval_checkpoint": "all.json"},             "^", "-."),
 ]
 
 MS        = 32    # marker size
@@ -76,9 +78,11 @@ GROUP_COLORS = {
 def load_params(source):
     """Return (param_names, param_values) from a source spec.
 
-    source = None               → PARAM_CONFIG defaults
-    source = "file.csv"         → outputs/file.csv  (columns: param, value)
-    source = {"checkpoint": …}  → outputs/phase2_de_checkpoints/<name>.json
+    source = None                      → PARAM_CONFIG defaults
+    source = "file.csv"                → outputs/file.csv  (columns: param, value)
+    source = {"checkpoint": …}         → outputs/phase2_de_checkpoints/<name>.json
+    source = {"seq_checkpoint": …}     → outputs/phase2_sequential_checkpoints/<name>.json
+    source = {"calval_checkpoint": …}  → outputs/calval_checkpoints/<name>.json
     """
     import json
     if source is None:
@@ -93,6 +97,12 @@ def load_params(source):
     elif isinstance(source, dict) and "seq_checkpoint" in source:
         ckpt = json.loads(
             (BASE_DIR / "outputs" / "phase2_sequential_checkpoints" / source["seq_checkpoint"]).read_text()
+        )
+        names  = list(ckpt["params"].keys())
+        values = list(ckpt["params"].values())
+    elif isinstance(source, dict) and "calval_checkpoint" in source:
+        ckpt = json.loads(
+            (BASE_DIR / "outputs" / "calval_checkpoints" / source["calval_checkpoint"]).read_text()
         )
         names  = list(ckpt["params"].keys())
         values = list(ckpt["params"].values())
@@ -118,6 +128,11 @@ print("Loading and precomputing model data...")
 data       = precompute_data(repo_root=BASE_DIR)
 cases_info = data["cases_info_df"][["case", "group_calib"]]
 
+# ── Load cal-val split (train / test flags) ───────────────────────────────────
+
+calval_split = pd.read_csv(BASE_DIR / "outputs" / "calval_split.csv")
+test_cases   = set(calval_split.loc[calval_split["split"] == "test", "case"])
+
 # ── Run each param set ────────────────────────────────────────────────────────
 
 predictions = {}
@@ -134,7 +149,8 @@ p4_label = PARAM_SETS[-1][0]   # last entry — reference for group annotations
 base_df  = predictions[p4_label][["case", "observed", "group_calib"]].copy()
 base_df["group_order"] = base_df["group_calib"].map({g: i for i, g in enumerate(GROUP_ORDER)})
 base_df = base_df.sort_values(["group_order", "observed"]).reset_index(drop=True)
-base_df["y"] = range(len(base_df))
+base_df["y"]        = range(len(base_df))
+base_df["is_test"]  = base_df["case"].isin(test_cases)
 
 for label, _, _, _ in PARAM_SETS:
     col = f"pred_{label}"
@@ -149,6 +165,7 @@ group_stats = (
     base_df.groupby("group_calib")
     .apply(lambda g: pd.Series({
         "n":       len(g),
+        "n_test":  g["is_test"].sum(),
         "bias_p4": (g["observed"] - g[f"pred_{p4_label}"]).mean(),
         "rmse_p4": np.sqrt(((g["observed"] - g[f"pred_{p4_label}"])**2).mean()),
         "y_min":   g["y"].min(),
@@ -185,8 +202,10 @@ for _, row in base_df.iterrows():
                    facecolors="white", edgecolors=color,
                    zorder=3, linewidths=0.9)
 
-    # Observed: filled circle (topmost)
-    ax.scatter(obs, y, s=MS_OBS, marker="o",
+    # Observed: filled circle (train) or filled diamond (test) — topmost
+    obs_marker = "D" if row["is_test"] else "o"
+    obs_size   = MS_OBS * 0.85 if row["is_test"] else MS_OBS
+    ax.scatter(obs, y, s=obs_size, marker=obs_marker,
                facecolors=color, edgecolors=color, zorder=4, linewidths=0.5)
 
     # Case number to the left of the leftmost point
@@ -202,7 +221,7 @@ for _, gs in group_stats.iterrows():
     mid_y = (gs["y_min"] + gs["y_max"]) / 2
     txt   = (
         f"  {gs['group_calib']}"
-        f"  (n={int(gs['n'])}, "
+        f"  (n={int(gs['n'])}, val={int(gs['n_test'])}, "
         f"bias={gs['bias_p4']:+.2f}, "
         f"RMSE={gs['rmse_p4']:.2f})"
     )
@@ -217,8 +236,8 @@ ax.set_yticklabels(base_df["case"].astype(str), fontsize=5.5)
 ax.axvline(0, color="black", lw=0.6, ls="--", alpha=0.35)
 ax.set_xlabel("Δ SOC  (t C ha⁻¹ yr⁻¹)", fontsize=10)
 ax.set_title(
-    "Observed vs Predicted ΔSoC — Default vs Phase 2 Sequential\n"
-    "● observed  □ default  ○ Phase 2 optimized",
+    "Observed vs Predicted ΔSoC — Default / Phase 2 / Cal-Val\n"
+    "● obs (train)  ◆ obs (validation)  □ default  ○ Phase 2  △ Cal-Val",
     fontsize=10,
 )
 ax.set_ylim(-0.5, base_df["y"].max() + 0.5)
@@ -227,7 +246,9 @@ ax.invert_yaxis()
 # Legend
 legend_handles = [
     plt.scatter([], [], s=MS_OBS, marker="o", facecolors="gray",
-                edgecolors="gray", label="Observed"),
+                edgecolors="gray", label="Observed (train)"),
+    plt.scatter([], [], s=MS_OBS * 0.85, marker="D", facecolors="gray",
+                edgecolors="gray", label="Observed (validation)"),
 ]
 for label, _, marker, ls in PARAM_SETS:
     legend_handles.append(
