@@ -397,7 +397,7 @@ def objective(param_values, param_names, data, case_subset=None, return_details=
     
     if return_details:
         mae = np.mean(np.abs(residuals))
-        bias = np.mean(residuals)
+        bias = -np.mean(residuals)  # mean(pred - obs): positive = overprediction
         r2 = 1 - (np.sum(residuals**2) / np.sum((comparison['delta_soc_t_ha_y'] - comparison['delta_soc_t_ha_y'].mean())**2))
         
         details = {
