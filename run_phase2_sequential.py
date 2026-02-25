@@ -89,7 +89,7 @@ def get_case_subset(data, groups):
 
 
 def run_de(set_name, param_names, data, case_subset, best_params,
-           maxiter, popsize, seed, verbose=True):
+           maxiter, popsize, seed, verbose=True, polish=False):
     """Run DE on a single sub-run, warm-started from best_params."""
     n = len(param_names)
     pop_total = popsize * n
@@ -140,8 +140,10 @@ def run_de(set_name, param_names, data, case_subset, best_params,
         atol=0.001,
         disp=verbose,
         workers=1,
-        polish=False,
+        polish=polish,
     )
+    if polish:
+        print(f"  [L-BFGS-B polish applied]")
     elapsed = time.time() - start
 
     opt_params = dict(zip(param_names, result.x))
@@ -252,10 +254,11 @@ if __name__ == "__main__":
             print(f"\nWARNING: No cases found for groups {target_groups}, skipping '{set_name}'.")
             continue
 
-        # Run DE
+        # Run DE (polish only on the final 'all' run)
         result = run_de(
             set_name, param_names, data, case_subset, best_params,
-            maxiter=maxiter, popsize=popsize, seed=seed
+            maxiter=maxiter, popsize=popsize, seed=seed,
+            polish=(set_name == 'all')
         )
 
         # Merge optimized params into best_params (warm-start for next run)
