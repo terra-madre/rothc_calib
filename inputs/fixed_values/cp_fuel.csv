@@ -1,0 +1,31 @@
+country,land_use,fuel_CO2e (t/ha)
+FR,arable crops / annuals,0.378
+GR,arable crops / annuals,0.035
+IT,arable crops / annuals,0.518
+PT,arable crops / annuals,0.329
+ES,arable crops / annuals,0.275
+FR,woody crops / perennials,0.189
+GR,woody crops / perennials,0.017
+IT,woody crops / perennials,0.259
+PT,woody crops / perennials,0.164
+ES,woody crops / perennials,0.138
+FR,silvopasture,0
+GR,silvopasture,0
+IT,silvopasture,0
+PT,silvopasture,0
+ES,silvopasture,0
+FR,grassland / pasture,0
+GR,grassland / pasture,0
+IT,grassland / pasture,0
+PT,grassland / pasture,0
+ES,grassland / pasture,0
+FR,abandoned / fallow,0
+GR,abandoned / fallow,0
+IT,abandoned / fallow,0
+PT,abandoned / fallow,0
+ES,abandoned / fallow,0
+FR,unknown,0
+GR,unknown,0
+IT,unknown,0
+PT,unknown,0
+ES,unknown,0

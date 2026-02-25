@@ -1,0 +1,20 @@
+sub_type,type,c_frac_amend (kgC/kgFM),dry_frac (kgDM/kgFM),c_frac (kgC/kgDM),max_amend (t/ha),dr_ratio_type,manure_amend,species
+cattle manure,manure,0.07,0.22,0.29,20,dr_ratio_fym,TRUE,cattle
+cattle slurry,slurry,0.02,0.07,0.29,60,dr_ratio_fym,TRUE,cattle
+chicken manure,manure,0.21,0.5,0.41,20,dr_ratio_fym,TRUE,chicken
+generic biochar,biochar,0.66,0.93,0.71,20,dr_ratio_wood,FALSE,none
+generic compost,compost,0.16,0.5,0.32,20,dr_ratio_fym,FALSE,none
+generic fodder,fodder,0.35,0.8,0.44,20,dr_ratio_annuals,FALSE,none
+generic manure,manure,0.1,0.32,0.32,20,dr_ratio_fym,TRUE,general
+generic mulch,mulch,0.35,0.8,0.44,20,dr_ratio_annuals,FALSE,none
+generic slurry,slurry,0.02,0.07,0.31,60,dr_ratio_fym,FALSE,none
+green/plant-based compost,compost,0.23,0.5,0.45,20,dr_ratio_fym,FALSE,none
+hay/straw,mulch,0.35,0.8,0.44,20,dr_ratio_annuals,FALSE,none
+horse manure,manure,0.09,0.32,0.29,20,dr_ratio_fym,TRUE,horse
+leaves,mulch,0.35,0.8,0.44,20,dr_ratio_annuals,FALSE,none
+manure-based compost,compost,0.1,0.5,0.2,20,dr_ratio_fym,TRUE,general
+mushroom compost,compost,0.12,0.4,0.31,20,dr_ratio_fym,FALSE,none
+pig manure,manure,0.08,0.24,0.32,20,dr_ratio_fym,TRUE,swine
+pig slurry,slurry,0.02,0.07,0.32,60,dr_ratio_fym,TRUE,swine
+sheep manure,manure,0.09,0.31,0.29,20,dr_ratio_fym,TRUE,sheep
+wood bark/wood chips,mulch,0.35,0.8,0.44,20,dr_ratio_wood,FALSE,none

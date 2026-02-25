@@ -1,0 +1,36 @@
+country,land_use,C (t/ha),N (t/ha),type
+FR,arable crops / annuals,0.179,0.005,treated manure
+GR,arable crops / annuals,0.07,0.002,treated manure
+IT,arable crops / annuals,0.166,0.005,treated manure
+PT,arable crops / annuals,0.203,0.006,treated manure
+ES,arable crops / annuals,0.14,0.004,treated manure
+ES,woody crops / perennials,0,0,treated manure
+FR,woody crops / perennials,0,0,treated manure
+PT,woody crops / perennials,0,0,treated manure
+GR,woody crops / perennials,0,0,treated manure
+IT,woody crops / perennials,0,0,treated manure
+ES,grassland / pasture,0,0,treated manure
+FR,grassland / pasture,0,0,treated manure
+PT,grassland / pasture,0,0,treated manure
+GR,grassland / pasture,0,0,treated manure
+IT,grassland / pasture,0,0,treated manure
+ES,silvopasture,0,0,treated manure
+FR,silvopasture,0,0,treated manure
+PT,silvopasture,0,0,treated manure
+GR,silvopasture,0,0,treated manure
+IT,silvopasture,0,0,treated manure
+ES,abandoned / fallow,0,0,treated manure
+FR,abandoned / fallow,0,0,treated manure
+PT,abandoned / fallow,0,0,treated manure
+GR,abandoned / fallow,0,0,treated manure
+IT,abandoned / fallow,0,0,treated manure
+ES,unknown,0,0,treated manure
+FR,unknown,0,0,treated manure
+PT,unknown,0,0,treated manure
+GR,unknown,0,0,treated manure
+IT,unknown,0,0,treated manure
+ES,bare soil,0,0,treated manure
+FR,bare soil,0,0,treated manure
+PT,bare soil,0,0,treated manure
+GR,bare soil,0,0,treated manure
+IT,bare soil,0,0,treated manure

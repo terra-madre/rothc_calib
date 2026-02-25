@@ -1,0 +1,10 @@
+setting,value,description
+method,differential_evolution,Optimization algorithm (L-BFGS-B or differential_evolution)
+maxiter,30,Maximum iterations/generations
+popsize,5,DE population size multiplier (pop = popsize * n_params)
+seed,42,Random seed for reproducibility
+n_splits,5,Number of cross-validation folds
+test_size,0.2,Fraction held out for test set
+cv_random_state,42,Random seed for train/test split and CV folds
+eps,0.01,Step size for L-BFGS-B finite-difference gradient (scipy default ~1.5e-8)
+soil_depth_cm,30,Soil depth in cm for RothC model

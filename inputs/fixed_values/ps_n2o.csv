@@ -1,0 +1,10 @@
+name,value,units
+n_frac_gas_fert,0.11,kgN/kgN
+n_frac_gas_om,0.21,kgN/kgN
+n_frac_leach_dry,0,kgN/kgN
+n_n2o_conv,1.5714,kgN2O / kgN
+n2o_ef_deepbed,0.01,kgN2O-N / kgN
+n2o_ef_gas_dry,0.005,kgN2O-N / kgN
+n2o_ef_grazing_dry,0.002,kgN2O-N / kgN
+n2o_ef_leach_dry,0.011,kgN2O-N / kgN
+n2o_ef_n_inputs,0.005,kgN2O-N / kgN

@@ -1,0 +1,18 @@
+management,frac_remaining,prod_modifier
+crop residues mostly removed (grazed),0.15,1
+crop residues mostly removed (not grazed),0.15,1
+crop residues partly removed (grazed),0.5,1
+crop residues partly removed (not grazed),0.5,1
+crop residues not removed (not grazed),1,1
+prunings fully removed,0,1
+prunings partly removed,0.5,1
+prunings not removed,1,1
+improved grassland with continuous grazing,0.15,1.3
+improved grassland cut and dropped,1,1.3
+improved grassland cut and harvested,0.15,1.3
+improved grassland with planned/rotational grazing,0.15,1.3
+natural grasses/shrubs with continuous grazing,0.15,1
+natural grasses/shrubs cut and dropped,1,1
+natural grasses/shrubs cut and harvested,0.15,1
+natural grasses/shrubs with no grazing or cutting,1,1
+natural grasses/shrubs with planned/rotational grazing,0.15,1.3

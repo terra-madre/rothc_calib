@@ -1,0 +1,36 @@
+country,land_use,fertilize N (kg/ha),fertilize P (kg/ha),fertilize K (kg/ha)
+ES,arable crops / annuals,46.55,14.68,18.48
+FR,arable crops / annuals,87.04,12.09,12.29
+PT,arable crops / annuals,49.34,20.28,22.28
+GR,arable crops / annuals,60.24,16.95,14.19
+IT,arable crops / annuals,60.04,10.55,14.65
+ES,woody crops / perennials,19,8,8
+FR,woody crops / perennials,26,6,16
+PT,woody crops / perennials,34,8,12
+GR,woody crops / perennials,41,6,7
+IT,woody crops / perennials,43,5,17
+ES,grassland / pasture,0,0,0
+FR,grassland / pasture,0,0,0
+PT,grassland / pasture,0,0,0
+GR,grassland / pasture,0,0,0
+IT,grassland / pasture,0,0,0
+ES,silvopasture,0,0,0
+FR,silvopasture,0,0,0
+PT,silvopasture,0,0,0
+GR,silvopasture,0,0,0
+IT,silvopasture,0,0,0
+ES,abandoned / fallow,0,0,0
+FR,abandoned / fallow,0,0,0
+PT,abandoned / fallow,0,0,0
+GR,abandoned / fallow,0,0,0
+IT,abandoned / fallow,0,0,0
+ES,unknown,0,0,0
+FR,unknown,0,0,0
+PT,unknown,0,0,0
+GR,unknown,0,0,0
+IT,unknown,0,0,0
+ES,bare soil,0,0,0
+FR,bare soil,0,0,0
+PT,bare soil,0,0,0
+GR,bare soil,0,0,0
+IT,bare soil,0,0,0

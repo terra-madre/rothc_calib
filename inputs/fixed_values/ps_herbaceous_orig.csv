@@ -1,0 +1,49 @@
+group_cover,cover,group,n_fixing_frac (kg/kg),n_ag (kgN/kgDM),n_bg (kgN/kgDM),r_s_ratio (kg/kg),dry_frac (kgDM/kgFM),c_frac (kgC/kgDM),turnover_ag (y-1),turnover_bg (y-1),residue_yield_ratio (kg/kg),max_prod_ag (tFM/ha)
+aromatics - general,aromatics,aromatics,0,0.008,0.009,0.22,0.85,0.44,1,1,1,10
+cover crop - grass-legume mixture,grass-legume cover crop,cover crop,0.5,0.021,0.019,0.47,0.9,0.44,1,1,0.15,20
+cover crop - single or multiple grasses,single or multiple grasses,cover crop,0,0.015,0.012,0.54,0.9,0.44,1,1,0.15,20
+cover crop - single or multiple legumes,single or multiple legumes,cover crop,1,0.027,0.022,0.4,0.9,0.44,1,1,0.15,20
+forage/grasses - italian ryegrass,italian ryegrass,forage/grasses,0,0.015,0.012,0.8,0.9,0.44,1,1,0.15,20
+forage/grasses - maize,maize,forage/grasses,0,0.006,0.007,0.22,0.87,0.47,1,1,1.09,58
+forage/grasses - other,other grass forages,forage/grasses,0,0.015,0.012,0.54,0.9,0.44,1,1,0.15,20
+forage/grasses - sudangrass,sudangrass,forage/grasses,0,0.015,0.012,0.8,0.9,0.44,1,1,0.15,20
+forage/legumes - alfalfa,alfalfa,forage/legumes,1,0.027,0.019,0.4,0.9,0.44,1,1,1,24
+forage/legumes - clover,clover,forage/legumes,1,0.027,0.021,0.4,0.9,0.44,1,1,0.575,22
+forage/legumes - other,other legume forages,forage/legumes,1,0.027,0.022,0.4,0.9,0.44,1,1,0.15,20
+forage/legumes - vetch,vetch,forage/legumes,1,0.027,0.021,0.4,0.9,0.44,1,1,0.575,22
+forage/mixed - grass and legumes,grass-legume mixtures,forage/mixed,0.5,0.018,0.014,0.53,0.9,0.45,1,1,0.45,27
+grain/legumes - beans,beans,grain/legumes,1,0.008,0.008,0.19,0.91,0.44,1,1,0.7,10
+grain/legumes - cowpea,cowpea,grain/legumes,1,0.008,0.008,0.19,0.91,0.44,1,1,1,18
+grain/legumes - lupins,lupins,grain/legumes,1,0.027,0.022,0.4,0.9,0.44,1,1,1,18
+grain/legumes - other,other,grain/legumes,1,0.016,0.013,0.28,0.91,0.44,1,1,1,18
+grain/legumes - peas,peas,grain/legumes,1,0.008,0.008,0.19,0.91,0.44,1,1,0.7,18
+grain/legumes - soybeans,soybeans,grain/legumes,1,0.008,0.008,0.19,0.91,0.44,1,1,1.38,18
+grain/legumes - vetch,vetch,grain/legumes,1,0.027,0.022,0.4,0.9,0.44,1,1,1,18
+grains/cereals - barley,barley,grains/cereals,0,0.007,0.014,0.22,0.89,0.46,1,1,1.15,24
+grains/cereals - durum wheat,durum wheat,grains/cereals,0,0.006,0.009,0.23,0.89,0.49,1,1,1,24
+grains/cereals - maize,maize,grains/cereals,0,0.006,0.007,0.22,0.87,0.47,1,1,1.09,58
+grains/cereals - millet,millet,grains/cereals,0,0.007,0.009,0.2,0.9,0.46,1,1,0.99,15
+grains/cereals - mixed or other,mixed grain other,grains/cereals,0,0.006,0.009,0.22,0.89,0.46,1,1,1.15,28
+grains/cereals - oats,oats,grains/cereals,0,0.007,0.008,0.25,0.89,0.46,1,1,1.37,13
+grains/cereals - rice,rice,grains/cereals,0,0.007,0.009,0.16,0.89,0.41,1,1,1.33,45
+grains/cereals - rye,rye,grains/cereals,0,0.005,0.011,0.2,0.88,0.46,1,1,1.53,18
+grains/cereals - sorghum,sorghum,grains/cereals,0,0.007,0.006,0.2,0.89,0.46,1,1,1.18,43
+grains/cereals - spring wheat,spring wheat,grains/cereals,0,0.006,0.009,0.28,0.89,0.49,1,1,1,24
+grains/cereals - triticale,triticale,grains/cereals,0,0.006,0.009,0.2,0.88,0.44,1,1,1,24
+grains/cereals - winter wheat,winter wheat,grains/cereals,0,0.006,0.009,0.23,0.89,0.49,1,1,1,24
+grassland - permanent grasses or shrubs,permanent grasses or shrubs	,grassland/shrubland,0.23,0.015,0.012,0.8,0.9,0.45,1,1,0.15,30
+oilseeds - other,other oilseeds,oilseeds,0,0.012,0.009,0.22,0.9,0.44,1,1,1,17
+oilseeds - peanuts,peanuts,oilseeds,0,0.016,0.009,0.22,0.94,0.44,1,1,1.21,10
+oilseeds - rapeseed,rapeseed,oilseeds,0,0.012,0.009,0.22,0.9,0.44,1,1,1,17
+oilseeds - sunflower,sunflower,oilseeds,0,0.008,0.009,0.22,0.85,0.44,1,1,1,14
+roots/tubers - beets,beets,roots/tubers,0,0.019,0.014,0.2,0.22,0.42,1,1,0.5,274
+roots/tubers - potatoes,potatoes,roots/tubers,0,0.019,0.014,0.2,0.22,0.42,1,1,0.14,96
+roots/tubers - sweet potatoes,sweet potatoes,roots/tubers,0,0.019,0.014,0.2,0.22,0.42,1,1,0.14,96
+vegetables - asparagus,asparagus,vegetables,0,0.008,0.009,0.22,0.1,0.44,1,1,0.5,262
+vegetables - cabbages,cabbages,vegetables,0,0.008,0.009,0.22,0.1,0.44,1,1,0.5,262
+vegetables - cauliflowers and broccoli,cauliflowers and broccoli,vegetables,0,0.008,0.009,0.22,0.1,0.44,1,1,0.5,262
+vegetables - green peas,green peas,vegetables,0,0.008,0.009,0.22,0.1,0.44,1,1,0.5,262
+vegetables - lettuce and chicory,lettuce and chicory,vegetables,0,0.008,0.009,0.22,0.1,0.44,1,1,0.5,262
+vegetables - other vegetables,other vegetables,vegetables,0,0.008,0.009,0.22,0.1,0.44,1,1,0.5,262
+"vegetables - pumpkins, squash and gourds","pumpkins, squash and gourds",vegetables,0,0.008,0.009,0.22,0.1,0.44,1,1,0.5,262
+vegetables - tomatoes,tomatoes,vegetables,0,0.008,0.009,0.22,0.1,0.44,1,1,0.5,262

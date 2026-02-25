@@ -1,0 +1,13 @@
+name,default,bound_min,bound_max,source,tier,description
+dr_ratio_annuals,1.44,0.5,5.0,ps_general,1,DPM/RPM ratio for annual crops and decomposable amendments (e.g. mulch and leaves)
+dr_ratio_treegrass,0.67,0.3,1.5,ps_general,1,DPM/RPM ratio for tree litter and grass
+dr_ratio_wood,0.25,0.1,0.5,ps_general,1,DPM/RPM ratio for woody inputs (tree prunings wood chips etc.)
+dr_ratio_fym,1.0,0.5,2.0,ps_general,1,DPM/RPM ratio for recalcitrant amendments (e.g. farmyard manure and compost)
+plant_cover_modifier,0.6,0.4,0.8,rothc,1,Decomposition rate modifier with plant cover
+decomp_mod,1.0,0.7,1.3,rothc,1,Global decomposition rate scaling modifier (applies to all cases)
+grass_rsr_b,-0.001,-0.0015,-0.0008,ps_general,2,Exponent for MAP-based grassland root:shoot ratio function (negative exponential)
+turnover_bg_grass,1.0,0.5,3.0,ps_herbaceous,2,Grassland belowground biomass turnover rate (y-1)
+tree_fine_root_ratio,0.1,0.03,0.2,ps_trees,2,Fine/total root ratio for trees
+tree_turnover_ag,0.02,0.01,0.05,ps_trees,2,Leaf/litter turnover (y-1)
+residue_frac_remaining,0.15,0.0,0.3,ps_management,2,Fraction of residues retained under crop residues mostly removed (not grazed)
+cc_yield_mod,1.0,0.5,1.1,calc_carbon_inputs,2,Cover crop yield scaling modifier (multiplies AGB and thus BGB via r_s_ratio)

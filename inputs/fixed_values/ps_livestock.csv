@@ -1,0 +1,20 @@
+category,species,group,animal_mass (kg/head),ef_ent_ferm (kgCH4/head/year),n_excretion (kgN/tanimal/day),volatile_solids (kg/tanimal/day),c_vs_frac (kgC/kgVS),max_age (days),max_grazing_days (days),ef_ch4_manure (kgCH4/tVS)
+cattle: dairy cow (> 2 years),cattle,dairy cows,600,126,0.54,8.4,0.53,365,365,0.4
+cattle: non-dairy cow (> 2 years),cattle,cattle,500,67,0.39,5.5,0.53,365,365,0.4
+cattle: males (> 2 years),cattle,cattle,600,81,0.38,6.5,0.53,365,365,0.4
+cattle: growing (6 - 24 months),cattle,cattle,400,57,0.47,6.7,0.53,365,365,0.4
+cattle: calves (< 6 months),cattle,cattle,230,16,0.37,3.1,0.53,180,90,0.4
+swine: females (> 6 months),swine,swine,190,1.5,0.38,2.4,0.53,365,275,1
+swine: males (> 6 months),swine,swine,190,1.5,0.38,2.4,0.53,365,365,1
+swine: finishers (3-6 months),swine,swine,76,1.5,0.76,5.3,0.53,90,90,1
+swine: piglets (< 3 months),swine,swine,30,1,0.65,4.5,0.53,90,0,1
+swine: general (> 3 months),swine,swine,76,1.5,0.76,5.3,0.53,90,90,1
+chicken: general,chicken,poultry,1.4,0,0.99,12.3,0.53,365,365,2.4
+turkeys: general,turkeys,poultry,6.8,0,0.74,10.3,0.53,365,365,2.4
+sheep: female (> 1 year),sheep,sheep,40,9,0.36,8.2,0.53,365,365,1.3
+sheep: male (> 1 year),sheep,sheep,40,9,0.36,8.2,0.53,365,365,1.3
+sheep: lambs (< 1 year),sheep,sheep,20,9,0.36,8.2,0.53,365,275,1.3
+goats: female (> 1 year),goats,goats,40,9,0.46,9,0.53,365,365,1.3
+goats: male (> 1 year),goats,goats,40,9,0.46,9,0.53,365,365,1.3
+goats: kids (< 1 year),goats,goats,20,9,0.46,9,0.53,365,275,1.3
+ducks: general,ducks,poultry,2.7,0,0.83,7.4,0.53,365,365,2.4

@@ -1,0 +1,50 @@
+ipcc_climate_zone,land_use,medinet_soc30_t_ha
+Cool Temperate Dry,annuals,54
+Cool Temperate Dry,olive trees,
+Cool Temperate Dry,fruit trees,
+Cool Temperate Dry,trees,
+Cool Temperate Dry,pasture,
+Cool Temperate Dry,shrubland,57.8
+Cool Temperate Dry,grasses_shrubs,57.8
+Cool Temperate Moist,annuals,60.1
+Cool Temperate Moist,olive trees,
+Cool Temperate Moist,fruit trees,
+Cool Temperate Moist,trees,
+Cool Temperate Moist,pasture,97
+Cool Temperate Moist,shrubland,97.3
+Cool Temperate Moist,grasses_shrubs,97.15
+Tropical Dry,annuals,33.6
+Tropical Dry,olive trees,29.4
+Tropical Dry,fruit trees,
+Tropical Dry,trees,29.4
+Tropical Dry,pasture,
+Tropical Dry,shrubland,
+Tropical Dry,grasses_shrubs,
+Warm Temperate Dry,annuals,43.4
+Warm Temperate Dry,olive trees,38.3
+Warm Temperate Dry,fruit trees,42.3
+Warm Temperate Dry,trees,40.3
+Warm Temperate Dry,pasture,48.8
+Warm Temperate Dry,shrubland,52.3
+Warm Temperate Dry,grasses_shrubs,50.55
+Warm Temperate Moist,annuals,71.8
+Warm Temperate Moist,olive trees,51
+Warm Temperate Moist,fruit trees,55.4
+Warm Temperate Moist,trees,53.2
+Warm Temperate Moist,pasture,80.4
+Warm Temperate Moist,shrubland,104.2
+Warm Temperate Moist,grasses_shrubs,92.3
+Dry,annuals,43.1
+Dry,olive trees,37.7
+Dry,fruit trees,41.5
+Dry,trees,39.6
+Dry,pasture,49.5
+Dry,shrubland,52.7
+Dry,grasses_shrubs,51.1
+Moist,annuals,71.5
+Moist,olive trees,51
+Moist,fruit trees,55.8
+Moist,trees,53.4
+Moist,pasture,85.4
+Moist,shrubland,101.7
+Moist,grasses_shrubs,93.55
