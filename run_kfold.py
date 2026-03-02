@@ -30,6 +30,7 @@ Usage (from project root):
 import sys
 import json
 import time
+import argparse
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -41,7 +42,10 @@ from optimization import (
     PARAM_CONFIG, PARAM_SETS, OPTIM_SETTINGS,
     precompute_data, objective, get_baseline_rmse,
 )
-from run_phase2_sequential import SUB_RUNS, run_de, save_checkpoint, load_checkpoint
+from run_phase2_sequential import (
+    SUB_RUNS, run_de, save_checkpoint, load_checkpoint,
+    get_outlier_cases, apply_outlier_filter,
+)
 
 # =============================================================================
 # Configuration
@@ -50,9 +54,6 @@ from run_phase2_sequential import SUB_RUNS, run_de, save_checkpoint, load_checkp
 N_SPLITS     = int(OPTIM_SETTINGS.get('n_splits', 5))
 RANDOM_STATE = int(OPTIM_SETTINGS.get('cv_random_state', 42))
 
-# Phase 2 'all' checkpoint to warm-start every fold
-WARMSTART_CKPT = "phase2_sequential_checkpoints/all.json"
-
 BASE_DIR = Path(__file__).parent.parent
 
 
@@ -60,17 +61,17 @@ BASE_DIR = Path(__file__).parent.parent
 # Helpers
 # =============================================================================
 
-def load_warmstart_params(base_dir):
+def load_warmstart_params(warmstart_path):
     """Load param dict from the Phase 2 'all' checkpoint."""
-    ckpt_path = base_dir / "outputs" / WARMSTART_CKPT
-    if not ckpt_path.exists():
-        print(f"  WARNING: warm-start checkpoint not found at {ckpt_path}.")
+    warmstart_path = Path(warmstart_path)
+    if not warmstart_path.exists():
+        print(f"  WARNING: warm-start checkpoint not found at {warmstart_path}.")
         print("  Starting from PARAM_CONFIG defaults.")
         return {}
-    with open(ckpt_path) as f:
+    with open(warmstart_path) as f:
         ckpt = json.load(f)
     params = ckpt["params"]
-    print(f"  Warm-start loaded from: {ckpt_path.name}  ({len(params)} params)")
+    print(f"  Warm-start loaded from: {warmstart_path.name}  ({len(params)} params)")
     return params
 
 
@@ -127,29 +128,45 @@ def compute_fold_acceptance(cal_rmse, val_details):
 # =============================================================================
 
 if __name__ == "__main__":
+    ap = argparse.ArgumentParser(description="K-Fold CV: Stratified Phase 2 Sequential Optimization")
+    ap.add_argument('--exclude-outliers', action='store_true',
+                    help='Remove outlier cases via modified Z-score (|M|>2.5) before folding')
+    ap.add_argument('--output-dir', default=None,
+                    help='Output directory (default: outputs/)')
+    args = ap.parse_args()
+
     maxiter = int(OPTIM_SETTINGS.get('maxiter', 30))
     popsize = int(OPTIM_SETTINGS.get('popsize', 8))
     seed    = int(OPTIM_SETTINGS.get('seed', 42))
 
-    output_dir    = BASE_DIR / "outputs"
+    output_dir      = Path(args.output_dir) if args.output_dir else BASE_DIR / "outputs"
     kfold_ckpt_root = output_dir / "kfold_checkpoints"
-    output_dir.mkdir(exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    warmstart_path  = output_dir / "phase2_sequential_checkpoints" / "all.json"
 
     print("K-Fold CV: Stratified Phase 2 Sequential Optimization")
     print(f"K={N_SPLITS}  |  Random state={RANDOM_STATE}")
     print(f"DE settings: maxiter={maxiter}, popsize={popsize}, seed={seed}")
-    print(f"Warm-start: {WARMSTART_CKPT}")
+    print(f"Warm-start: {warmstart_path.relative_to(BASE_DIR)}")
+    if args.exclude_outliers:
+        print("Outlier filter: ENABLED (modified Z-score, threshold=2.5)")
 
     # ── Load data ─────────────────────────────────────────────────────────────
     print("\nLoading data...")
     data = precompute_data(repo_root=BASE_DIR)
+    print(f"Loaded {len(data['cases_info_df'])} cases")
+
+    if args.exclude_outliers:
+        removed = apply_outlier_filter(data)
+        print(f"Outlier removal: removed {len(removed)} cases {sorted(removed)}")
+        print(f"  Remaining: {len(data['cases_info_df'])} cases")
+
     cases_info = data['cases_info_df']
-    print(f"Loaded {len(cases_info)} cases")
     print(f"Groups: {sorted(cases_info['group_calib'].unique().tolist())}")
 
     baseline = get_baseline_rmse(data)
     baseline_rmse = baseline['rmse']
-    print(f"\nBaseline RMSE (all cases, defaults): {baseline_rmse:.4f}")
+    print(f"\nBaseline RMSE (defaults): {baseline_rmse:.4f}")
 
     # ── Build super-group labels (same mapping as run_calval.py) ──────────────
     group_to_super = {}
@@ -171,7 +188,7 @@ if __name__ == "__main__":
 
     # ── Warm-start parameters (shared across all folds) ───────────────────────
     print("\nLoading warm-start parameters...")
-    warmstart_params = load_warmstart_params(BASE_DIR)
+    warmstart_params = load_warmstart_params(warmstart_path)
     if warmstart_params:
         print("  Values:")
         for p, v in warmstart_params.items():

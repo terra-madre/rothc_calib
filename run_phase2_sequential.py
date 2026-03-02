@@ -24,6 +24,7 @@ Usage (from project root):
 import sys
 import json
 import time
+import argparse
 import pandas as pd
 import numpy as np
 from pathlib import Path
@@ -192,32 +193,92 @@ def load_checkpoint(set_name, ckpt_dir):
 
 
 # =============================================================================
+# Outlier filtering
+# =============================================================================
+
+def get_outlier_cases(cases_info_df, col='delta_soc_t_ha_y', threshold=2.5):
+    """
+    Identify outlier cases using the modified Z-score.
+
+    M_i = 0.6745 * (x_i - median) / MAD
+    Returns list of case IDs where |M_i| > threshold.
+    """
+    x = cases_info_df[col]
+    median = x.median()
+    mad = (x - median).abs().median()
+    if mad == 0:
+        return []
+    mod_z = 0.6745 * (x - median) / mad
+    return cases_info_df.loc[mod_z.abs() > threshold, 'case'].tolist()
+
+
+def apply_outlier_filter(data, col='delta_soc_t_ha_y', threshold=2.5):
+    """
+    Remove outlier cases from all tables in the data dict in-place.
+
+    Filters cases_info_df, cases_treatments_df, climate_df, and
+    initial_pools_df by case ID, then filters plant_cover_df by the
+    subcases that remain.  After calling this, objective() with
+    case_subset=None naturally operates only on non-outlier cases.
+
+    Returns list of removed case IDs.
+    """
+    outlier_cases = get_outlier_cases(data['cases_info_df'], col=col, threshold=threshold)
+    if not outlier_cases:
+        return outlier_cases
+    outlier_set = set(outlier_cases)
+    for key in ('cases_info_df', 'cases_treatments_df', 'climate_df', 'initial_pools_df'):
+        if key in data and 'case' in data[key].columns:
+            data[key] = data[key][~data[key]['case'].isin(outlier_set)].reset_index(drop=True)
+    if 'plant_cover_df' in data:
+        keep_subcases = set(data['cases_treatments_df']['subcase'].unique())
+        data['plant_cover_df'] = data['plant_cover_df'][
+            data['plant_cover_df']['subcase'].isin(keep_subcases)
+        ].reset_index(drop=True)
+    return outlier_cases
+
+
+# =============================================================================
 # Main
 # =============================================================================
 
 if __name__ == "__main__":
     BASE_DIR = Path(__file__).parent.parent
 
+    ap = argparse.ArgumentParser(description="Phase 2 Sequential Group Optimization")
+    ap.add_argument('--exclude-outliers', action='store_true',
+                    help='Remove outlier cases via modified Z-score (|M|>2.5) before optimizing')
+    ap.add_argument('--output-dir', default=None,
+                    help='Output directory (default: outputs/)')
+    args = ap.parse_args()
+
     maxiter = int(OPTIM_SETTINGS.get('maxiter', 30))
     popsize = int(OPTIM_SETTINGS.get('popsize', 8))
     seed    = int(OPTIM_SETTINGS.get('seed', 42))
 
+    output_dir = Path(args.output_dir) if args.output_dir else BASE_DIR / "outputs"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    ckpt_dir = output_dir / "phase2_sequential_checkpoints"
+
     print("Phase 2: Sequential Group-Specific Optimization")
     print(f"Settings: maxiter={maxiter}, popsize={popsize}, seed={seed}")
     print(f"Sub-runs: {[sr[0] for sr in SUB_RUNS]}")
-
-    output_dir = BASE_DIR / "outputs"
-    output_dir.mkdir(exist_ok=True)
-    ckpt_dir = output_dir / "phase2_sequential_checkpoints"
+    if args.exclude_outliers:
+        print("Outlier filter: ENABLED (modified Z-score, threshold=2.5)")
 
     # -------------------------------------------------------------------
     # Load data
     # -------------------------------------------------------------------
     print("\nLoading data...")
     data = precompute_data(repo_root=BASE_DIR)
-    n_cases = len(data['cases_info_df'])
+    print(f"Loaded {len(data['cases_info_df'])} cases")
+
+    if args.exclude_outliers:
+        removed = apply_outlier_filter(data)
+        print(f"Outlier removal: removed {len(removed)} cases {sorted(removed)}")
+        print(f"  Remaining: {len(data['cases_info_df'])} cases")
+
     groups_present = sorted(data['cases_info_df']['group_calib'].unique().tolist())
-    print(f"Loaded {n_cases} cases")
     print(f"Groups: {groups_present}")
 
     baseline = get_baseline_rmse(data)
