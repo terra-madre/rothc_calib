@@ -256,9 +256,9 @@ def fig4_sequential_flow():
 def fig5_param_changes():
     cfg = pd.read_csv(ROOT / "inputs/optimization/param_config.csv")
 
-    phase2_json = ROOT / "outputs/phase2_sequential_checkpoints/all.json"
+    sequential_groups_json = ROOT / "outputs/sequential_groups_checkpoints/all.json"
     calval_json = ROOT / "outputs/calval_checkpoints/all.json"
-    p2 = json.loads(phase2_json.read_text())["params"]
+    p2 = json.loads(sequential_groups_json.read_text())["params"]
     cv = json.loads(calval_json.read_text())["params"]
 
     rows = []
@@ -286,7 +286,7 @@ def fig5_param_changes():
     y  = np.arange(len(df))
     bh = 0.32
 
-    bars_p2 = ax.barh(y + bh/2, df["p2_pct"], height=bh, label="Phase 2 (n=70)",
+    bars_p2 = ax.barh(y + bh/2, df["p2_pct"], height=bh, label="Sequential groups (n=70)",
                       color="#2563EB", alpha=0.85, zorder=3)
     bars_cv = ax.barh(y - bh/2, df["cv_pct"], height=bh, label="Cal-Val train (n=47)",
                       color="#059669", alpha=0.75, zorder=3)

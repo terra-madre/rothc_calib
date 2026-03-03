@@ -1,10 +1,10 @@
 """
-Plot Phase 2 Sequential Optimization Results.
+Plot Sequential Groups Optimization Results.
 
 Produces 3 figures saved to outputs/:
-  1. phase2_subrun_rmse.png       - RMSE per sub-run vs baseline
-  2. phase2_param_changes.png     - Optimized vs default values (all run)
-  3. phase2_obs_vs_pred.png       - Obs vs pred delta SOC: baseline vs optimized
+    1. sequential_groups_subrun_rmse.png   - RMSE per sub-run vs baseline
+    2. sequential_groups_param_changes.png - Optimized vs default values (all run)
+    3. sequential_groups_obs_vs_pred.png   - Obs vs pred delta SOC: baseline vs optimized
 """
 
 import sys
@@ -25,8 +25,8 @@ OUT_DIR = BASE_DIR / "outputs"
 # ─────────────────────────────────────────────
 # Load results
 # ─────────────────────────────────────────────
-summary = pd.read_csv(OUT_DIR / "phase2_sequential_summary.csv")
-params_df = pd.read_csv(OUT_DIR / "phase2_sequential_params.csv")
+summary = pd.read_csv(OUT_DIR / "sequential_groups_summary.csv")
+params_df = pd.read_csv(OUT_DIR / "sequential_groups_params.csv")
 all_params = params_df[params_df['set_name'] == 'all'].set_index('parameter')
 
 baseline_rmse = summary['baseline_rmse'].iloc[0]
@@ -51,7 +51,7 @@ for bar, rmse, n in zip(bars, rmses, n_cases):
             f'{rmse:.4f}  ({n_label})', va='center', fontsize=9)
 
 ax.set_xlabel('RMSE (t C/ha/y)', fontsize=11)
-ax.set_title('Phase 2: RMSE per Sub-run vs Baseline', fontsize=13, fontweight='bold')
+ax.set_title('Sequential groups: RMSE per Sub-run vs Baseline', fontsize=13, fontweight='bold')
 ax.set_xlim(0, baseline_rmse * 1.25)
 ax.legend(fontsize=9)
 ax.grid(axis='x', alpha=0.4, zorder=1)
@@ -64,9 +64,9 @@ for label, tick in zip(labels, ax.get_yticklabels()):
         tick.set_color('#D65F5F')
 
 plt.tight_layout()
-fig.savefig(OUT_DIR / "phase2_subrun_rmse.png", dpi=150)
+fig.savefig(OUT_DIR / "sequential_groups_subrun_rmse.png", dpi=150)
 plt.close()
-print("Saved: phase2_subrun_rmse.png")
+print("Saved: sequential_groups_subrun_rmse.png")
 
 
 # ─────────────────────────────────────────────
@@ -126,11 +126,11 @@ for bar, pct in zip(bars, pct_changes):
     ha = 'left' if pct >= 0 else 'right'
     ax.text(xpos, bar.get_y() + bar.get_height()/2, f'{pct:+.1f}%', va='center', ha=ha, fontsize=8)
 
-fig.suptitle('Phase 2: Optimized Parameters (all-cases run)', fontsize=13, fontweight='bold')
+fig.suptitle('Sequential groups: Optimized Parameters (all-cases run)', fontsize=13, fontweight='bold')
 plt.tight_layout()
-fig.savefig(OUT_DIR / "phase2_param_changes.png", dpi=150)
+fig.savefig(OUT_DIR / "sequential_groups_param_changes.png", dpi=150)
 plt.close()
-print("Saved: phase2_param_changes.png")
+print("Saved: sequential_groups_param_changes.png")
 
 
 # ─────────────────────────────────────────────
@@ -160,7 +160,7 @@ fig, axes = plt.subplots(1, 2, figsize=(14, 6), sharey=False)
 
 for ax, comp, title, rmse, r2 in [
     (axes[0], base_comp, 'Baseline (defaults)', base_details['rmse'], base_details['r2']),
-    (axes[1], opt_comp,  'Optimized (Phase 2)',  opt_details['rmse'],  opt_details['r2']),
+    (axes[1], opt_comp,  'Optimized (sequential groups)',  opt_details['rmse'],  opt_details['r2']),
 ]:
     obs = comp['delta_soc_t_ha_y']
     pred = comp['delta_treatment_control_per_year']
@@ -183,10 +183,10 @@ handles = [mpatches.Patch(color=group_colors[g], label=g) for g in groups]
 handles.append(plt.Line2D([0],[0], color='k', linestyle='--', label='1:1'))
 axes[1].legend(handles=handles, fontsize=7.5, loc='upper left', framealpha=0.8)
 
-fig.suptitle('Phase 2: Observed vs Predicted ΔSOC', fontsize=13, fontweight='bold')
+fig.suptitle('Sequential groups: Observed vs Predicted ΔSOC', fontsize=13, fontweight='bold')
 plt.tight_layout()
-fig.savefig(OUT_DIR / "phase2_obs_vs_pred.png", dpi=150)
+fig.savefig(OUT_DIR / "sequential_groups_obs_vs_pred.png", dpi=150)
 plt.close()
-print("Saved: phase2_obs_vs_pred.png")
+print("Saved: sequential_groups_obs_vs_pred.png")
 
 print("\nAll plots saved to outputs/")

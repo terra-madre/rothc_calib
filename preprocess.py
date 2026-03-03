@@ -907,3 +907,49 @@ def get_st_yields(cases_info_df, fixed_data_dir, loc_data_dir):
     st_yields_all.to_csv(loc_data_dir / "st_yields_selected.csv", index=False)
 
     return st_yields_all
+
+
+# =============================================================================
+# Outlier Filtering
+# =============================================================================
+
+def get_outlier_cases(cases_info_df, col='delta_soc_t_ha_y', threshold=2.5):
+    """
+    Identify outlier cases using the modified Z-score.
+
+    M_i = 0.6745 * (x_i - median) / MAD
+    Returns list of case IDs where |M_i| > threshold.
+    """
+    x = cases_info_df[col]
+    median = x.median()
+    mad = (x - median).abs().median()
+    if mad == 0:
+        return []
+    mod_z = 0.6745 * (x - median) / mad
+    return cases_info_df.loc[mod_z.abs() > threshold, 'case'].tolist()
+
+
+def remove_outlier_cases(cases_info_df, cases_treatments_df, plant_cover_df=None,
+                         col='delta_soc_t_ha_y', threshold=2.5):
+    """
+    Remove outlier cases from the cases and treatments DataFrames.
+
+    Uses the modified Z-score on the specified column.
+    Returns (filtered_cases_info_df, filtered_cases_treatments_df,
+             filtered_plant_cover_df_or_None, removed_case_ids).
+    """
+    outlier_cases = get_outlier_cases(cases_info_df, col=col, threshold=threshold)
+    if not outlier_cases:
+        return cases_info_df, cases_treatments_df, plant_cover_df, []
+    outlier_set = set(outlier_cases)
+
+    cases_info_df = cases_info_df[~cases_info_df['case'].isin(outlier_set)].reset_index(drop=True)
+    cases_treatments_df = cases_treatments_df[~cases_treatments_df['case'].isin(outlier_set)].reset_index(drop=True)
+
+    if plant_cover_df is not None:
+        keep_subcases = set(cases_treatments_df['subcase'].unique())
+        plant_cover_df = plant_cover_df[
+            plant_cover_df['subcase'].isin(keep_subcases)
+        ].reset_index(drop=True)
+
+    return cases_info_df, cases_treatments_df, plant_cover_df, outlier_cases

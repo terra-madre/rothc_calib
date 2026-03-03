@@ -7,7 +7,7 @@ Per case (one row):
   ● filled circle   = observed (calibration / training case)
   ◆ filled diamond  = observed (validation / test case)
   □ open square     = default parameters
-  ○ open circle     = Phase 2 sequential optimisation
+    ○ open circle     = Sequential-groups optimisation
   △ open triangle   = Cal-Val calibration set optimisation
 
 Color = calibration group. Case number shown to the left of each row.
@@ -36,11 +36,11 @@ OUTPUT_PNG = BASE_DIR / "outputs" / "obs_vs_pred_calval.png"
 # source can be:
 #   None                               → PARAM_CONFIG defaults
 #   "<name>.csv"                       → outputs/<name>.csv  (columns: param, value)
-#   {"seq_checkpoint": "<name>.json"}  → outputs/phase2_sequential_checkpoints/<name>.json
+#   {"seq_checkpoint": "<name>.json"}  → outputs/sequential_groups_checkpoints/<name>.json
 #   {"calval_checkpoint": "<name>.json"} → outputs/calval_checkpoints/<name>.json
 PARAM_SETS = [
     ("Default",  None,                                          "s", "--"),
-    ("Phase 2",  {"seq_checkpoint":    "all.json"},             "o", "-"),
+    ("Sequential groups",  {"seq_checkpoint":    "all.json"},    "o", "-"),
     ("Cal-Val",  {"calval_checkpoint": "all.json"},             "^", "-."),
 ]
 
@@ -80,23 +80,16 @@ def load_params(source):
 
     source = None                      → PARAM_CONFIG defaults
     source = "file.csv"                → outputs/file.csv  (columns: param, value)
-    source = {"checkpoint": …}         → outputs/phase2_de_checkpoints/<name>.json
-    source = {"seq_checkpoint": …}     → outputs/phase2_sequential_checkpoints/<name>.json
+    source = {"seq_checkpoint": …}     → outputs/sequential_groups_checkpoints/<name>.json
     source = {"calval_checkpoint": …}  → outputs/calval_checkpoints/<name>.json
     """
     import json
     if source is None:
         names  = list(PARAM_CONFIG.keys())
         values = [PARAM_CONFIG[p]["default"] for p in names]
-    elif isinstance(source, dict) and "checkpoint" in source:
-        ckpt = json.loads(
-            (BASE_DIR / "outputs" / "phase2_de_checkpoints" / source["checkpoint"]).read_text()
-        )
-        names  = list(ckpt["params"].keys())
-        values = list(ckpt["params"].values())
     elif isinstance(source, dict) and "seq_checkpoint" in source:
         ckpt = json.loads(
-            (BASE_DIR / "outputs" / "phase2_sequential_checkpoints" / source["seq_checkpoint"]).read_text()
+            (BASE_DIR / "outputs" / "sequential_groups_checkpoints" / source["seq_checkpoint"]).read_text()
         )
         names  = list(ckpt["params"].keys())
         values = list(ckpt["params"].values())

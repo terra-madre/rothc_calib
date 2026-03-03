@@ -199,11 +199,11 @@ default_names  = list(PARAM_CONFIG.keys())
 default_values = [PARAM_CONFIG[p]["default"] for p in default_names]
 df_default = run_model(default_names, default_values, data)
 
-print("Running Phase 2...")
-p2_names, p2_values = load_params_from_checkpoint(
-    BASE_DIR / "outputs" / "phase2_sequential_checkpoints" / "all.json"
+print("Running sequential_groups...")
+sg_names, sg_values = load_params_from_checkpoint(
+    BASE_DIR / "outputs" / "sequential_groups_checkpoints" / "all.json"
 )
-df_phase2 = run_model(p2_names, p2_values, data)
+df_sequential_groups = run_model(sg_names, sg_values, data)
 
 print("Running Cal-Val...")
 cv_names, cv_values = load_params_from_checkpoint(
@@ -224,7 +224,7 @@ fig.subplots_adjust(wspace=0.32, bottom=0.22)
 
 draw_panel(axes[0], df_default, "Default parameters")
 
-draw_panel(axes[1], df_phase2,  "Phase 2 — sequential calibration\n(all 70 cases)")
+draw_panel(axes[1], df_sequential_groups,  "Sequential groups — calibration\n(all 70 cases)")
 
 # Cal-Val panel has two metric boxes: calibration + validation
 draw_panel(axes[2], df_calval,

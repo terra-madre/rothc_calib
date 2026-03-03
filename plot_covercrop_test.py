@@ -4,7 +4,7 @@ plot_covercrop_test.py
 Dumbbell chart comparing three param sets for the cover crop test:
   ● observed
   □ Default params
-  ○ Phase 2 (all.json)
+    ○ Sequential groups (all.json)
   △ Covercrop Test (covercrop_test.json)
 
 Covercrop groups are shown with full opacity; other groups are faded.
@@ -56,7 +56,7 @@ GROUP_COLORS = {
 
 PARAM_SETS = [
     ("Default",        None,    "s", "Default"),
-    ("Phase 2",        "phase2_sequential_checkpoints/all.json", "o", "Phase 2 (all)"),
+    ("Sequential groups", "sequential_groups_checkpoints/all.json", "o", "Sequential groups (all)"),
     ("Covercrop Test", "covercrop_test_checkpoints/covercrop_test.json", "^", "Covercrop Test"),
 ]
 

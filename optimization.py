@@ -16,6 +16,8 @@ Usage:
     result = run_optimization(['dr_ratio_annuals', 'map_to_prod'], data)
 """
 
+import json
+import time as _time
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -24,8 +26,6 @@ from sklearn.model_selection import train_test_split, StratifiedKFold
 
 # Import model steps
 import calc_carbon_inputs as step2
-import calc_initial_pools as step3
-import calc_plant_cover as step4
 import run_rothc_model as step5
 import calc_soc_deltas as step6
 
@@ -257,12 +257,14 @@ def apply_param_updates(params, data):
 # Data Loading and Precomputation
 # =============================================================================
 
-def precompute_data(repo_root=None, soil_depth_cm=30):
+def precompute_data(repo_root=None, soil_depth_cm=30, proc_subdir=None):
     """Load and precompute all data that doesn't depend on calibrated parameters.
     
     Args:
         repo_root: Path to repository root (default: auto-detect)
         soil_depth_cm: Soil depth in cm (default: 30)
+        proc_subdir: Optional subdirectory under inputs/processed/ to read from
+                     (e.g. 'no_outliers'). Default: read from inputs/processed/.
     
     Returns:
         Dict with all precomputed data needed for optimization
@@ -275,6 +277,8 @@ def precompute_data(repo_root=None, soil_depth_cm=30):
     input_dir = repo_root / "inputs"
     loc_data_dir = input_dir / "loc_data"
     proc_data_dir = input_dir / "processed"
+    if proc_subdir:
+        proc_data_dir = proc_data_dir / proc_subdir
     fixed_data_dir = input_dir / "fixed_values"
     
     # Load case data
@@ -283,11 +287,9 @@ def precompute_data(repo_root=None, soil_depth_cm=30):
     climate_df = pd.read_csv(loc_data_dir / "rothc_climate_avg.csv")
     st_yields_all = pd.read_csv(loc_data_dir / "st_yields_selected.csv")
     
-    # Precompute initial pools (depends only on SOC and clay, not calibrated params)
-    initial_pools_df = step3.get_rothc_pools(cases_info_df, type="transient")
-    
-    # Precompute plant cover schedule (depends only on treatment type)
-    plant_cover_df = step4.plant_cover(cases_treatments_df)
+    # Load pre-computed initial pools and plant cover (produced by prepare_data.py)
+    initial_pools_df = pd.read_csv(proc_data_dir / "initial_pools.csv")
+    plant_cover_df = pd.read_csv(proc_data_dir / "plant_cover.csv")
     
     # Load base parameter files (will be modified during optimization)
     ps_herbaceous = pd.read_csv(fixed_data_dir / "ps_herbaceous.csv")
@@ -718,6 +720,232 @@ def print_param_config():
     print("Optimization settings:")
     for k, v in OPTIM_SETTINGS.items():
         print(f"  {k}: {v}")
+
+
+# =============================================================================
+# Sequential Sub-Run Definitions and Run Infrastructure
+# =============================================================================
+
+# Sub-run order for group-specific sequential optimization.
+# Each entry: (set_name, param_names, target_groups)
+# target_groups=None → use all cases.
+SUB_RUNS = [
+    ('amendment',     PARAM_SETS['amendment'],     ['amendment']),
+    ('cropresid',     PARAM_SETS['cropresid'],     ['cropresid']),
+    ('covercrop_all', PARAM_SETS['covercrop_all'], ['covercrop', 'covercrop_amendment', 'covercrop_cropresid']),
+    ('grass_all',     PARAM_SETS['grass_all'],     ['grass', 'grass_annuals']),
+    ('pruning',       PARAM_SETS['pruning'],       ['grass_pruning', 'covercrop_pruning']),
+    ('all',           PARAM_SETS['all'],           None),
+]
+
+
+def get_case_subset(data, groups):
+    """Return list of case IDs belonging to the given group(s), or None for all."""
+    if groups is None:
+        return None
+    cases_info = data['cases_info_df']
+    return cases_info[cases_info['group_calib'].isin(groups)]['case'].tolist()
+
+
+def get_train_case_subset(data, groups, train_cases_set):
+    """Return cases belonging to *groups* AND present in *train_cases_set*."""
+    cases_info = data['cases_info_df']
+    if groups is None:
+        return sorted(train_cases_set)
+    group_cases = cases_info[cases_info['group_calib'].isin(groups)]['case'].tolist()
+    return [c for c in group_cases if c in train_cases_set]
+
+
+def build_supergroup_labels(cases_info):
+    """Map each case's group_calib to its SUB_RUNS super-group name.
+
+    Groups that don't appear in any targeted sub-run keep their original label.
+    """
+    group_to_super = {}
+    for set_name, _params, target_groups in SUB_RUNS:
+        if target_groups is None:
+            continue
+        for g in target_groups:
+            group_to_super[g] = set_name
+    return cases_info['group_calib'].map(group_to_super).fillna(cases_info['group_calib'])
+
+
+def load_warmstart_params(warmstart_path):
+    """Load parameter dict from a checkpoint JSON file."""
+    warmstart_path = Path(warmstart_path)
+    if not warmstart_path.exists():
+        print(f"  WARNING: warm-start checkpoint not found at {warmstart_path}.")
+        print("  Starting from PARAM_CONFIG defaults.")
+        return {}
+    with open(warmstart_path) as f:
+        ckpt = json.load(f)
+    params = ckpt["params"]
+    print(f"  Warm-start loaded from: {warmstart_path.name}  ({len(params)} params)")
+    return params
+
+
+def run_de(set_name, param_names, data, case_subset, best_params,
+           maxiter, popsize, seed, verbose=True, polish=False):
+    """Run differential evolution on a single sub-run, warm-started from best_params."""
+    n = len(param_names)
+    pop_total = popsize * n
+    subset_label = f"{len(case_subset)} cases" if case_subset is not None else "all cases"
+
+    print(f"\n{'='*70}")
+    print(f"Sub-run: {set_name}  [{subset_label}]")
+    print(f"Params ({n}): {param_names}")
+    print(f"Pop={pop_total}, MaxGen={maxiter}, Seed={seed}")
+    print(f"{'='*70}")
+
+    x0 = np.array([best_params.get(p, PARAM_CONFIG[p]['default']) for p in param_names])
+    bounds = [PARAM_CONFIG[p]['bounds'] for p in param_names]
+
+    for i, (pname, (lo, hi)) in enumerate(zip(param_names, bounds)):
+        if not (lo <= x0[i] <= hi):
+            clipped = float(np.clip(x0[i], lo, hi))
+            print(f"  WARNING: x0[{pname}]={x0[i]:.4f} outside bounds ({lo},{hi}) → clipped to {clipped:.4f}")
+            x0[i] = clipped
+
+    print(f"x0 (warm-start): {dict(zip(param_names, np.round(x0, 4)))}")
+
+    start = _time.time()
+    gen_count = [0]
+
+    def callback(xk, convergence):
+        gen_count[0] += 1
+        if gen_count[0] % 5 == 0:
+            rmse = objective(xk, param_names, data, case_subset)
+            elapsed = _time.time() - start
+            print(f"  Gen {gen_count[0]:3d}: RMSE={rmse:.4f}  Conv={convergence:.6f}  Time={elapsed:.0f}s")
+        return False
+
+    result = differential_evolution(
+        objective,
+        bounds,
+        args=(param_names, data, case_subset),
+        x0=x0,
+        maxiter=maxiter,
+        popsize=popsize,
+        seed=seed,
+        callback=callback,
+        mutation=(0.5, 1.0),
+        recombination=0.7,
+        tol=0.001,
+        atol=0.001,
+        disp=verbose,
+        workers=1,
+        polish=polish,
+    )
+    if polish:
+        print(f"  [L-BFGS-B polish applied]")
+    elapsed = _time.time() - start
+
+    opt_params = dict(zip(param_names, result.x))
+
+    print(f"\n--- {set_name} Results ---")
+    print(f"RMSE:       {result.fun:.4f}")
+    print(f"Time:       {elapsed:.0f}s ({elapsed/60:.1f} min)")
+    print(f"Func calls: {result.nfev}")
+    print(f"Converged:  {result.success} ({result.message})")
+    for pname, val in opt_params.items():
+        default = PARAM_CONFIG[pname]['default']
+        pct = (val - default) / abs(default) * 100 if default != 0 else float('nan')
+        bound_lo, bound_hi = PARAM_CONFIG[pname]['bounds']
+        at_bound = (" ← AT LOWER" if abs(val - bound_lo) < 1e-6
+                    else (" ← AT UPPER" if abs(val - bound_hi) < 1e-6 else ""))
+        print(f"  {pname:30s}: {val:.4f}  (default: {default:.4f}, {pct:+.1f}%){at_bound}")
+
+    return {
+        'set_name': set_name,
+        'rmse': float(result.fun),
+        'time_s': elapsed,
+        'func_calls': result.nfev,
+        'success': bool(result.success),
+        'message': result.message,
+        'params': opt_params,
+        'n_cases': len(case_subset) if case_subset is not None else None,
+    }
+
+
+def save_checkpoint(run_result, baseline_rmse, ckpt_dir):
+    """Save a sub-run result as a JSON checkpoint."""
+    ckpt_dir.mkdir(parents=True, exist_ok=True)
+    ckpt_file = ckpt_dir / f"{run_result['set_name']}.json"
+    imp = (baseline_rmse - run_result['rmse']) / baseline_rmse * 100 if baseline_rmse else None
+    payload = {**run_result, 'baseline_rmse': baseline_rmse, 'improvement_pct': imp}
+    with open(ckpt_file, 'w') as f:
+        json.dump(payload, f, indent=2)
+    print(f"  [checkpoint saved → {ckpt_file.name}]")
+
+
+def load_checkpoint(set_name, ckpt_dir):
+    """Load a sub-run checkpoint if it exists, else return None."""
+    ckpt_file = ckpt_dir / f"{set_name}.json"
+    if ckpt_file.exists():
+        with open(ckpt_file) as f:
+            return json.load(f)
+    return None
+
+
+def run_sequential_subruns(data, ckpt_dir, best_params, case_subset_fn,
+                           maxiter, popsize, seed, baseline_rmse,
+                           print_cumulative=True):
+    """Run the full set of sequential sub-runs with checkpoint support.
+
+    Args:
+        data: Dict from precompute_data()
+        ckpt_dir: Path for checkpoint JSONs
+        best_params: Dict of current best params (modified in place)
+        case_subset_fn: Callable(data, target_groups) → list of case IDs or None
+        maxiter, popsize, seed: DE settings
+        baseline_rmse: For improvement % logging
+        print_cumulative: Print cumulative params after each sub-run
+
+    Returns:
+        list of result dicts
+    """
+    all_results = []
+    for set_name, param_names, target_groups in SUB_RUNS:
+        if not param_names:
+            print(f"\nWARNING: No params for set '{set_name}', skipping.")
+            continue
+
+        existing = load_checkpoint(set_name, ckpt_dir)
+        if existing is not None:
+            print(f"\n[RESUME] {set_name}: checkpoint found "
+                  f"— RMSE={existing['rmse']:.4f}, skipping.")
+            for p, v in existing['params'].items():
+                best_params[p] = v
+            all_results.append(existing)
+            continue
+
+        case_subset = case_subset_fn(data, target_groups)
+        if case_subset is not None and len(case_subset) == 0:
+            print(f"\nWARNING: No cases for groups {target_groups}, "
+                  f"skipping '{set_name}'.")
+            continue
+        if case_subset is not None and len(case_subset) < len(param_names):
+            print(f"\nWARNING: '{set_name}' has {len(case_subset)} cases for "
+                  f"{len(param_names)} params — may be unreliable.")
+
+        result = run_de(
+            set_name, param_names, data, case_subset, best_params,
+            maxiter=maxiter, popsize=popsize, seed=seed,
+            polish=(set_name == 'all'),
+        )
+
+        for p, v in result['params'].items():
+            best_params[p] = v
+
+        save_checkpoint(result, baseline_rmse, ckpt_dir)
+        all_results.append(result)
+
+        if print_cumulative:
+            print(f"\nCumulative best_params after '{set_name}':")
+            for p, v in best_params.items():
+                print(f"  {p:30s}: {v:.4f}")
+
+    return all_results
 
 
 # =============================================================================

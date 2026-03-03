@@ -183,15 +183,15 @@ def main():
     data = precompute_data()
     cases_info_df = data["cases_info_df"]
 
-    phase2_params = load_params(ckpt_dir / "phase2_sequential_checkpoints" / "all.json")
+    sequential_groups_params = load_params(ckpt_dir / "sequential_groups_checkpoints" / "all.json")
     calval_params = load_params(ckpt_dir / "calval_checkpoints" / "all.json")
 
     splits_df   = pd.read_csv(ckpt_dir / "calval_split.csv")
     train_cases = set(splits_df.loc[splits_df["split"] == "train", "case"])
     test_cases  = set(splits_df.loc[splits_df["split"] == "test",  "case"])
 
-    print("Running model for Phase 2 params …")
-    res_p2 = calc_model_uncertainty(phase2_params, data=data)
+    print("Running model for sequential_groups params …")
+    res_p2 = calc_model_uncertainty(sequential_groups_params, data=data)
     df_p2  = build_df(res_p2, cases_info_df)
 
     print("Running model for Cal-Val params …")
@@ -205,7 +205,7 @@ def main():
     draw_panel(
         axes[0], df_p2,
         me=res_p2["me"], rmse=res_p2["rmse"], bias=res_p2["bias"],
-        title="Phase 2 — calibrated on all 70 cases"
+        title="Sequential groups — calibrated on all 70 cases"
     )
 
     draw_panel(

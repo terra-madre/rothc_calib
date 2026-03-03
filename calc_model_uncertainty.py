@@ -40,7 +40,7 @@ import calc_soc_deltas as step6
 # =============================================================================
 
 def calc_model_uncertainty(params: dict, data: dict = None,
-                           case_subset: list = None, ci_pct: float = 0.90) -> dict:
+                           case_subset: list = None, ci_pct: float = 0.70) -> dict:
     """Compute Model Error (ME) and Model Uncertainty Deduction (MUD).
 
     Parameters
@@ -52,7 +52,7 @@ def calc_model_uncertainty(params: dict, data: dict = None,
         Precomputed data dict from precompute_data().  Loaded automatically if
         not provided.
     case_subset : list, optional
-        List of case IDs to restrict the evaluation to.  None = all 70 cases.
+        List of case IDs to restrict the evaluation to.  None = all cases.
 
     Returns
     -------
@@ -185,41 +185,41 @@ def _print_results(label: str, res: dict):
 
 
 # =============================================================================
-# Main — run for Phase 2 (all 70) and Cal-Val (train 47) parameter sets
+# Main — run for sequential_groups (all cases) and Cal-Val (70/30 split) parameter sets
 # =============================================================================
 
 if __name__ == "__main__":
-    CHECKPOINT_DIR = ROOT / "outputs"
+    CHECKPOINT_DIR = ROOT / "outputs" / "no_outliers"
 
-    phase2_path = CHECKPOINT_DIR / "phase2_sequential_checkpoints" / "all.json"
+    sequential_groups_path = CHECKPOINT_DIR / "sequential_groups_checkpoints" / "all.json"
     calval_path = CHECKPOINT_DIR / "calval_checkpoints" / "all.json"
 
     print("Loading precomputed data …")
     data = precompute_data()
 
-    # ── Phase 2 params (all 70 cases) ─────────────────────────────────────────
-    with open(phase2_path) as f:
-        phase2_params = json.load(f)['params']
+    # ── sequential_groups params (all cases) ───────────────────────────────
+    with open(sequential_groups_path) as f:
+        sequential_groups_params = json.load(f)['params']
 
-    res_phase2 = calc_model_uncertainty(phase2_params, data=data)
-    _print_results("Phase 2 — calibrated on all 70 cases", res_phase2)
+    res_sequential_groups = calc_model_uncertainty(sequential_groups_params, data=data)
+    _print_results("Sequential groups — calibrated on all cases", res_sequential_groups)
 
-    # ── Cal-Val params (trained on 47 cases); evaluate on all 70 ──────────────
+    # ── Cal-Val params; evaluate on all cases ──────────────
     with open(calval_path) as f:
         calval_params = json.load(f)['params']
 
     res_calval_all = calc_model_uncertainty(calval_params, data=data)
-    _print_results("Cal-Val params — evaluated on all 70 cases", res_calval_all)
+    _print_results("Cal-Val params — evaluated on all cases", res_calval_all)
 
-    # ── Cal-Val params, training set only (47 cases) ──────────────────────────
+    # ── Cal-Val params, training set only ──────────────────────────
     splits_df = pd.read_csv(CHECKPOINT_DIR / "calval_split.csv")
     train_cases = splits_df.loc[splits_df['split'] == 'train', 'case'].tolist()
     test_cases  = splits_df.loc[splits_df['split'] == 'test',  'case'].tolist()
 
     res_calval_train = calc_model_uncertainty(calval_params, data=data,
                                               case_subset=train_cases)
-    _print_results("Cal-Val params — calibration set (n=47 train)", res_calval_train)
+    _print_results("Cal-Val params — calibration set", res_calval_train)
 
     res_calval_test = calc_model_uncertainty(calval_params, data=data,
                                              case_subset=test_cases)
-    _print_results("Cal-Val params — validation set (n=23 test)", res_calval_test)
+    _print_results("Cal-Val params — validation set", res_calval_test)
