@@ -19,6 +19,8 @@ import sys
 import json
 import argparse
 import subprocess
+import contextlib
+from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -118,6 +120,41 @@ def run_postprocess(output_dir, proc_subdir, scripts):
         subprocess.run(cmd, check=True)
 
 
+class Tee:
+    def __init__(self, *streams):
+        self.streams = streams
+
+    def write(self, data):
+        for stream in self.streams:
+            stream.write(data)
+        return len(data)
+
+    def flush(self):
+        for stream in self.streams:
+            stream.flush()
+
+
+@contextlib.contextmanager
+def step_logger(step_name, output_dir):
+    log_path = Path(output_dir) / f"{step_name}.log"
+    with open(log_path, "w", encoding="utf-8") as log_file:
+        started = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        log_file.write(f"[{started}] STEP START: {step_name}\n")
+        log_file.flush()
+
+        tee_out = Tee(sys.stdout, log_file)
+        tee_err = Tee(sys.stderr, log_file)
+        with contextlib.redirect_stdout(tee_out), contextlib.redirect_stderr(tee_err):
+            try:
+                yield log_path
+                ended = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                print(f"[{ended}] STEP END: {step_name} (success)")
+            except Exception:
+                ended = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                print(f"[{ended}] STEP END: {step_name} (failed)")
+                raise
+
+
 def main():
     args = parse_args()
 
@@ -161,15 +198,17 @@ def main():
         prepare_cfg = dict(cfg.get("prepare", {}))
         prepare_cfg["do_remove_outliers"] = exclude_outliers
 
-        print("=" * 70)
-        print("STEP: prepare")
-        print("=" * 70)
-        run_prepare(
-            do_preprocess_cases=prepare_cfg.get("do_preprocess_cases", False),
-            do_get_st_yields=prepare_cfg.get("do_get_st_yields", False),
-            do_compute_derived=prepare_cfg.get("do_compute_derived", True),
-            do_remove_outliers=prepare_cfg.get("do_remove_outliers", False),
-        )
+        with step_logger("prepare", output_dir) as log_path:
+            print("=" * 70)
+            print("STEP: prepare")
+            print("=" * 70)
+            run_prepare(
+                do_preprocess_cases=prepare_cfg.get("do_preprocess_cases", False),
+                do_get_st_yields=prepare_cfg.get("do_get_st_yields", False),
+                do_compute_derived=prepare_cfg.get("do_compute_derived", True),
+                do_remove_outliers=prepare_cfg.get("do_remove_outliers", False),
+            )
+        print(f"  Log: {log_path}")
         print()
 
     needs_data = any(s in steps for s in ('sequential_groups', 'calval', 'kfold'))
@@ -183,30 +222,36 @@ def main():
     if 'sequential_groups' in steps:
         from run_sequential_groups import run_sequential_groups
 
-        print("=" * 70)
-        print("STEP: sequential_groups")
-        print("=" * 70)
-        run_sequential_groups(data, output_dir)
+        with step_logger("sequential_groups", output_dir) as log_path:
+            print("=" * 70)
+            print("STEP: sequential_groups")
+            print("=" * 70)
+            run_sequential_groups(data, output_dir)
+        print(f"  Log: {log_path}")
         print()
 
     if 'calval' in steps:
         from run_calval_singlesplit import run_calval
 
         warmstart = output_dir / "sequential_groups_checkpoints" / "all.json"
-        print("=" * 70)
-        print("STEP: calval")
-        print("=" * 70)
-        run_calval(data, output_dir, warmstart_path=warmstart)
+        with step_logger("calval", output_dir) as log_path:
+            print("=" * 70)
+            print("STEP: calval")
+            print("=" * 70)
+            run_calval(data, output_dir, warmstart_path=warmstart)
+        print(f"  Log: {log_path}")
         print()
 
     if 'kfold' in steps:
         from run_kfold import run_kfold
 
         warmstart = output_dir / "sequential_groups_checkpoints" / "all.json"
-        print("=" * 70)
-        print("STEP: kfold")
-        print("=" * 70)
-        run_kfold(data, output_dir, warmstart_path=warmstart)
+        with step_logger("kfold", output_dir) as log_path:
+            print("=" * 70)
+            print("STEP: kfold")
+            print("=" * 70)
+            run_kfold(data, output_dir, warmstart_path=warmstart)
+        print(f"  Log: {log_path}")
         print()
 
     if 'postprocess' in steps:
@@ -217,14 +262,16 @@ def main():
             print("=" * 70)
             print()
         else:
-            print("=" * 70)
-            print("STEP: postprocess")
-            print("=" * 70)
-            run_postprocess(
-                output_dir=output_dir,
-                proc_subdir=proc_subdir,
-                scripts=post_cfg.get("scripts", []),
-            )
+            with step_logger("postprocess", output_dir) as log_path:
+                print("=" * 70)
+                print("STEP: postprocess")
+                print("=" * 70)
+                run_postprocess(
+                    output_dir=output_dir,
+                    proc_subdir=proc_subdir,
+                    scripts=post_cfg.get("scripts", []),
+                )
+            print(f"  Log: {log_path}")
             print()
 
     print("=" * 70)
