@@ -139,7 +139,7 @@ if __name__ == "__main__":
     popsize = int(OPTIM_SETTINGS.get('popsize', 8))
     seed    = int(OPTIM_SETTINGS.get('seed', 42))
 
-    output_dir      = Path(args.output_dir) if args.output_dir else BASE_DIR / "outputs"
+    output_dir      = Path(args.output_dir).resolve() if args.output_dir else BASE_DIR / "outputs"
     kfold_ckpt_root = output_dir / "kfold_checkpoints"
     output_dir.mkdir(parents=True, exist_ok=True)
     warmstart_path  = output_dir / "phase2_sequential_checkpoints" / "all.json"

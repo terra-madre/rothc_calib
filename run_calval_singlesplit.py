@@ -227,7 +227,7 @@ if __name__ == "__main__":
     popsize = int(OPTIM_SETTINGS.get('popsize', 8))
     seed    = int(OPTIM_SETTINGS.get('seed', 42))
 
-    output_dir     = Path(args.output_dir) if args.output_dir else BASE_DIR / "outputs"
+    output_dir     = Path(args.output_dir).resolve() if args.output_dir else BASE_DIR / "outputs"
     output_dir.mkdir(parents=True, exist_ok=True)
     ckpt_dir       = output_dir / "calval_checkpoints"
     warmstart_path = output_dir / "phase2_sequential_checkpoints" / "all.json"
