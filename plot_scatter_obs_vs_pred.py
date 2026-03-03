@@ -5,7 +5,7 @@ plot_scatter_obs_vs_pred.py
 
 Panels (left to right):
   1. Default parameters
-  2. Phase 2 sequential calibration (all 70 cases)
+    2. Sequential-groups calibration (all 70 cases)
   3. Cal-Val calibration (train ● / test ◆ distinguished)
 
 Each panel:

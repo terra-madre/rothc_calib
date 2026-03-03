@@ -5,7 +5,7 @@ Plots model residuals (predicted − observed Δ SOC) against case number
 for the calibrated parameter sets.
 
 Two vertical panels:
-  Top    — Phase 2 params (all 70 cases)
+    Top    — Sequential-groups params (all 70 cases)
   Bottom — Cal-Val params (train ● / test ◆ distinguished)
 
 Each panel:

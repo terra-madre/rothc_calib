@@ -229,8 +229,8 @@ ax.set_yticklabels(base_df["case"].astype(str), fontsize=5.5)
 ax.axvline(0, color="black", lw=0.6, ls="--", alpha=0.35)
 ax.set_xlabel("Δ SOC  (t C ha⁻¹ yr⁻¹)", fontsize=10)
 ax.set_title(
-    "Observed vs Predicted ΔSoC — Default / Phase 2 / Cal-Val\n"
-    "● obs (train)  ◆ obs (validation)  □ default  ○ Phase 2  △ Cal-Val",
+    "Observed vs Predicted ΔSoC — Default / Sequential groups / Cal-Val\n"
+    "● obs (train)  ◆ obs (validation)  □ default  ○ Sequential groups  △ Cal-Val",
     fontsize=10,
 )
 ax.set_ylim(-0.5, base_df["y"].max() + 0.5)

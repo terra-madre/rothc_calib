@@ -297,7 +297,7 @@ def run_calval(data, output_dir, warmstart_path=None,
 # =============================================================================
 
 if __name__ == "__main__":
-    ap = argparse.ArgumentParser(description="Cal-Val: Stratified split + Phase 2 optimization")
+    ap = argparse.ArgumentParser(description="Cal-Val: Stratified split + sequential-groups optimization")
     ap.add_argument('--output-dir', default=None,
                     help='Output directory (default: outputs/)')
     ap.add_argument('--proc-subdir', default=None,

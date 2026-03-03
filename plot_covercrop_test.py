@@ -224,7 +224,7 @@ legend_elements = [
     Line2D([0], [0], marker="s", color="w", markerfacecolor="none", markeredgecolor="#555",
            markersize=8, markeredgewidth=1, label="Default"),
     Line2D([0], [0], marker="o", color="w", markerfacecolor="none", markeredgecolor="#555",
-           markersize=8, markeredgewidth=1, label="Phase 2 (all)"),
+           markersize=8, markeredgewidth=1, label="Sequential groups (all)"),
     Line2D([0], [0], marker="^", color="w", markerfacecolor="#555", markeredgecolor="#555",
            markersize=8, label="Covercrop Test"),
 ]
@@ -240,7 +240,7 @@ cc_df    = base_df[base_df["is_cc"]]
 other_df = base_df[~base_df["is_cc"]]
 
 print("\n=== COVERCROP CASES ===")
-for col, lbl in [("pred_Default", "Default  "), ("pred_Phase 2", "Phase 2  "), ("pred_Covercrop Test", "CC Test  ")]:
+for col, lbl in [("pred_Default", "Default  "), ("pred_Sequential groups", "Sequential groups  "), ("pred_Covercrop Test", "CC Test  ")]:
     res  = cc_df["observed"] - cc_df[col]
     rmse = np.sqrt((res**2).mean())
     bias = res.mean()
@@ -250,7 +250,7 @@ for col, lbl in [("pred_Default", "Default  "), ("pred_Phase 2", "Phase 2  "), (
     print(f"  {lbl}: RMSE={rmse:.4f}  MAE={np.abs(res).mean():.4f}  Bias={bias:+.4f}  R²={r2:.4f}")
 
 print("\n=== ALL CASES ===")
-for col, lbl in [("pred_Default", "Default  "), ("pred_Phase 2", "Phase 2  "), ("pred_Covercrop Test", "CC Test  ")]:
+for col, lbl in [("pred_Default", "Default  "), ("pred_Sequential groups", "Sequential groups  "), ("pred_Covercrop Test", "CC Test  ")]:
     res  = base_df["observed"] - base_df[col]
     rmse = np.sqrt((res**2).mean())
     bias = res.mean()

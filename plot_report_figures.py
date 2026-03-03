@@ -198,8 +198,8 @@ def fig4_sequential_flow():
     ax.set_xlim(-0.5, 8.5); ax.set_ylim(-0.5, 11.2)
     ax.axis("off"); fig.patch.set_facecolor("white")
 
-    # Starting box: Phase 2 initial params (warm-start source)
-    box(ax, 4, 10.4, "Phase 2 warm-start: default RothC parameters",
+    # Starting box: sequential-groups initial params (warm-start source)
+    box(ax, 4, 10.4, "Sequential-groups warm-start: default RothC parameters",
         w=4.8, h=0.50, fc=PALETTE["grey_light"], fontsize=8.5)
 
     y_top = 9.65

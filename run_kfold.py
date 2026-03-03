@@ -101,7 +101,7 @@ def run_kfold(data, output_dir, warmstart_path=None,
     if warmstart_path is None:
         warmstart_path = output_dir / "sequential_groups_checkpoints" / "all.json"
 
-    print("K-Fold CV: Stratified Phase 2 Sequential Optimization")
+    print("K-Fold CV: Stratified Sequential-Groups Optimization")
     print(f"K={n_splits}  |  Random state={random_state}")
     print(f"DE settings: maxiter={maxiter}, popsize={popsize}, seed={seed}")
     print(f"Warm-start: {warmstart_path}")
@@ -327,7 +327,7 @@ def run_kfold(data, output_dir, warmstart_path=None,
 # =============================================================================
 
 if __name__ == "__main__":
-    ap = argparse.ArgumentParser(description="K-Fold CV: Stratified Phase 2 Sequential Optimization")
+    ap = argparse.ArgumentParser(description="K-Fold CV: Stratified Sequential-Groups Optimization")
     ap.add_argument('--output-dir', default=None,
                     help='Output directory (default: outputs/)')
     ap.add_argument('--proc-subdir', default=None,

@@ -1,7 +1,7 @@
 """
 Compare predictions: Baseline vs Optimized Parameters
 
-Shows the impact of Phase 2 optimization on model predictions.
+Shows the impact of sequential-groups optimization on model predictions.
 """
 
 import sys
@@ -48,7 +48,7 @@ def main():
     baseline_pred = get_predictions(baseline_values, param_names, data)
     baseline_pred = baseline_pred.rename(columns={'predicted': 'pred_baseline'})
     
-    # Optimized (from Phase 2 DE results)
+    # Optimized (from sequential-groups DE results)
     print("[2/2] Computing optimized predictions...")
     optimized_values = [2.48073630677393, 0.003001213338264137, 0.808465157020152]
     optimized_pred = get_predictions(optimized_values, param_names, data)
