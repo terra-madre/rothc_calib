@@ -17,6 +17,7 @@ Cases sorted by group (GROUP_ORDER) then by observed value within group.
 """
 
 import sys
+import argparse
 import pandas as pd
 import numpy as np
 import matplotlib
@@ -30,7 +31,18 @@ from optimization import precompute_data, objective, PARAM_CONFIG
 # ── Configuration ────────────────────────────────────────────────────────────
 
 BASE_DIR   = Path(__file__).parent.parent
-OUTPUT_PNG = BASE_DIR / "outputs" / "obs_vs_pred_calval.png"
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Plot observed vs predicted dumbbell chart.")
+    parser.add_argument("--output-dir", default=str(BASE_DIR / "outputs"))
+    parser.add_argument("--proc-subdir", default=None)
+    return parser.parse_args()
+
+
+ARGS = parse_args()
+OUTPUT_DIR = Path(ARGS.output_dir)
+OUTPUT_PNG = OUTPUT_DIR / "obs_vs_pred_calval.png"
 
 # Which param sets to show: (label, source, marker, linestyle)
 # source can be:
@@ -89,18 +101,18 @@ def load_params(source):
         values = [PARAM_CONFIG[p]["default"] for p in names]
     elif isinstance(source, dict) and "seq_checkpoint" in source:
         ckpt = json.loads(
-            (BASE_DIR / "outputs" / "sequential_groups_checkpoints" / source["seq_checkpoint"]).read_text()
+            (OUTPUT_DIR / "sequential_groups_checkpoints" / source["seq_checkpoint"]).read_text()
         )
         names  = list(ckpt["params"].keys())
         values = list(ckpt["params"].values())
     elif isinstance(source, dict) and "calval_checkpoint" in source:
         ckpt = json.loads(
-            (BASE_DIR / "outputs" / "calval_checkpoints" / source["calval_checkpoint"]).read_text()
+            (OUTPUT_DIR / "calval_checkpoints" / source["calval_checkpoint"]).read_text()
         )
         names  = list(ckpt["params"].keys())
         values = list(ckpt["params"].values())
     else:
-        df     = pd.read_csv(BASE_DIR / "outputs" / source)
+        df     = pd.read_csv(OUTPUT_DIR / source)
         names  = df["param"].tolist()
         values = df["value"].tolist()
     return names, values
@@ -118,12 +130,12 @@ def get_predictions(param_names, param_values, data):
 # ── Load data (once) ──────────────────────────────────────────────────────────
 
 print("Loading and precomputing model data...")
-data       = precompute_data(repo_root=BASE_DIR)
+data       = precompute_data(repo_root=BASE_DIR, proc_subdir=ARGS.proc_subdir)
 cases_info = data["cases_info_df"][["case", "group_calib"]]
 
 # ── Load cal-val split (train / test flags) ───────────────────────────────────
 
-calval_split = pd.read_csv(BASE_DIR / "outputs" / "calval_split.csv")
+calval_split = pd.read_csv(OUTPUT_DIR / "calval_split.csv")
 test_cases   = set(calval_split.loc[calval_split["split"] == "test", "case"])
 
 # ── Run each param set ────────────────────────────────────────────────────────
@@ -251,5 +263,6 @@ for label, _, marker, ls in PARAM_SETS:
 ax.legend(handles=legend_handles, loc="lower right", fontsize=8, framealpha=0.85)
 
 plt.tight_layout(rect=[0, 0, 0.70, 1])
+OUTPUT_PNG.parent.mkdir(parents=True, exist_ok=True)
 plt.savefig(OUTPUT_PNG, dpi=150, bbox_inches="tight")
 print(f"\nPlot saved to: {OUTPUT_PNG}")

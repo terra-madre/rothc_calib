@@ -20,6 +20,7 @@ Output: outputs/residuals_vs_case.png
 
 import json
 import sys
+import argparse
 from pathlib import Path
 
 import matplotlib
@@ -74,7 +75,18 @@ GROUP_COLORS = {
     "grass_pruning":        "#E91E63",
 }
 
-OUTPUT_PNG = BASE_DIR / "outputs" / "residuals_vs_case.png"
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Plot residuals vs case.")
+    parser.add_argument("--output-dir", default=str(BASE_DIR / "outputs"))
+    parser.add_argument("--proc-subdir", default=None)
+    return parser.parse_args()
+
+
+ARGS = parse_args()
+OUTPUT_DIR = Path(ARGS.output_dir)
+OUTPUT_PNG = OUTPUT_DIR / "residuals_vs_case.png"
 
 # ── helpers ────────────────────────────────────────────────────────────────────
 
@@ -177,10 +189,10 @@ def draw_panel(ax, df, me, rmse, bias, title,
 # ── main ──────────────────────────────────────────────────────────────────────
 
 def main():
-    ckpt_dir = BASE_DIR / "outputs"
+    ckpt_dir = OUTPUT_DIR
 
     print("Loading data …")
-    data = precompute_data()
+    data = precompute_data(repo_root=BASE_DIR, proc_subdir=ARGS.proc_subdir)
     cases_info_df = data["cases_info_df"]
 
     sequential_groups_params = load_params(ckpt_dir / "sequential_groups_checkpoints" / "all.json")

@@ -21,6 +21,7 @@ Output: outputs/scatter_obs_vs_pred.png
 
 import sys
 import json
+import argparse
 import numpy as np
 import pandas as pd
 import matplotlib
@@ -35,7 +36,18 @@ from optimization import precompute_data, objective, PARAM_CONFIG
 # ── Configuration ─────────────────────────────────────────────────────────────
 
 BASE_DIR   = Path(__file__).parent.parent
-OUTPUT_PNG = BASE_DIR / "outputs" / "scatter_obs_vs_pred.png"
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Plot observed vs predicted scatter panels.")
+    parser.add_argument("--output-dir", default=str(BASE_DIR / "outputs"))
+    parser.add_argument("--proc-subdir", default=None)
+    return parser.parse_args()
+
+
+ARGS = parse_args()
+OUTPUT_DIR = Path(ARGS.output_dir)
+OUTPUT_PNG = OUTPUT_DIR / "scatter_obs_vs_pred.png"
 
 GROUP_ORDER = [
     "amendment",
@@ -186,10 +198,10 @@ def draw_panel(ax, df, title,
 # ── Load data ─────────────────────────────────────────────────────────────────
 
 print("Loading and precomputing model data...")
-data = precompute_data(repo_root=BASE_DIR)
+data = precompute_data(repo_root=BASE_DIR, proc_subdir=ARGS.proc_subdir)
 
 # Cal-val split
-calval_split = pd.read_csv(BASE_DIR / "outputs" / "calval_split.csv")
+calval_split = pd.read_csv(OUTPUT_DIR / "calval_split.csv")
 test_cases   = set(calval_split.loc[calval_split["split"] == "test", "case"])
 
 # ── Run three param sets ──────────────────────────────────────────────────────
@@ -201,13 +213,13 @@ df_default = run_model(default_names, default_values, data)
 
 print("Running sequential_groups...")
 sg_names, sg_values = load_params_from_checkpoint(
-    BASE_DIR / "outputs" / "sequential_groups_checkpoints" / "all.json"
+    OUTPUT_DIR / "sequential_groups_checkpoints" / "all.json"
 )
 df_sequential_groups = run_model(sg_names, sg_values, data)
 
 print("Running Cal-Val...")
 cv_names, cv_values = load_params_from_checkpoint(
-    BASE_DIR / "outputs" / "calval_checkpoints" / "all.json"
+    OUTPUT_DIR / "calval_checkpoints" / "all.json"
 )
 df_calval = run_model(cv_names, cv_values, data)
 
@@ -281,5 +293,6 @@ fig.legend(
     bbox_to_anchor=(0.5, -0.06),
 )
 
+OUTPUT_PNG.parent.mkdir(parents=True, exist_ok=True)
 plt.savefig(OUTPUT_PNG, dpi=150, bbox_inches="tight")
 print(f"\nPlot saved to: {OUTPUT_PNG}")

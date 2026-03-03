@@ -8,6 +8,7 @@ Produces 3 figures saved to outputs/:
 """
 
 import sys
+import argparse
 import numpy as np
 import pandas as pd
 import matplotlib
@@ -20,7 +21,18 @@ sys.path.insert(0, str(Path(__file__).parent))
 from optimization import precompute_data, objective, PARAM_CONFIG
 
 BASE_DIR = Path(__file__).resolve().parents[1]
-OUT_DIR = BASE_DIR / "outputs"
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Plot sequential groups outputs.")
+    parser.add_argument("--output-dir", default=str(BASE_DIR / "outputs"))
+    parser.add_argument("--proc-subdir", default=None)
+    return parser.parse_args()
+
+
+ARGS = parse_args()
+OUT_DIR = Path(ARGS.output_dir)
+OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # ─────────────────────────────────────────────
 # Load results
@@ -137,7 +149,7 @@ print("Saved: sequential_groups_param_changes.png")
 # Fig 3: Obs vs Pred — baseline vs optimized
 # ─────────────────────────────────────────────
 print("Computing baseline and optimized predictions...")
-data = precompute_data(repo_root=BASE_DIR)
+data = precompute_data(repo_root=BASE_DIR, proc_subdir=ARGS.proc_subdir)
 cases_info = data['cases_info_df']
 
 # Baseline (all defaults)

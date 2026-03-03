@@ -13,6 +13,7 @@ Cases sorted by group then by observed value within group.
 
 import sys
 import json
+import argparse
 import pandas as pd
 import numpy as np
 import matplotlib
@@ -24,7 +25,18 @@ sys.path.insert(0, str(Path(__file__).parent))
 from optimization import precompute_data, objective, PARAM_CONFIG
 
 BASE_DIR   = Path(__file__).parent.parent
-OUTPUT_PNG = BASE_DIR / "outputs" / "obs_vs_pred_covercrop_test.png"
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Plot covercrop test comparison.")
+    parser.add_argument("--output-dir", default=str(BASE_DIR / "outputs"))
+    parser.add_argument("--proc-subdir", default=None)
+    return parser.parse_args()
+
+
+ARGS = parse_args()
+OUTPUT_DIR = Path(ARGS.output_dir)
+OUTPUT_PNG = OUTPUT_DIR / "obs_vs_pred_covercrop_test.png"
 
 COVERCROP_GROUPS = ["covercrop", "covercrop_amendment", "covercrop_cropresid", "covercrop_pruning"]
 
@@ -71,7 +83,7 @@ def load_params(source):
         names  = list(PARAM_CONFIG.keys())
         values = [PARAM_CONFIG[p]["default"] for p in names]
         return names, values
-    ckpt = json.loads((BASE_DIR / "outputs" / source).read_text())
+    ckpt = json.loads((OUTPUT_DIR / source).read_text())
     names  = list(ckpt["params"].keys())
     values = list(ckpt["params"].values())
     return names, values
@@ -89,7 +101,7 @@ def get_predictions(param_names, param_values, data):
 # ── Load & run ────────────────────────────────────────────────────────────────
 
 print("Loading and precomputing model data...")
-data       = precompute_data(repo_root=BASE_DIR)
+data       = precompute_data(repo_root=BASE_DIR, proc_subdir=ARGS.proc_subdir)
 cases_info = data["cases_info_df"][["case", "group_calib"]]
 
 predictions = {}
@@ -231,6 +243,7 @@ legend_elements = [
 ax.legend(handles=legend_elements, loc="lower right", fontsize=9, framealpha=0.85)
 
 plt.tight_layout(rect=[0.03, 0, 0.78, 1])
+OUTPUT_PNG.parent.mkdir(parents=True, exist_ok=True)
 plt.savefig(OUTPUT_PNG, dpi=150, bbox_inches="tight")
 print(f"\nSaved: {OUTPUT_PNG}")
 

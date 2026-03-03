@@ -18,6 +18,7 @@ Usage
 
 import json
 import sys
+import argparse
 from pathlib import Path
 
 import numpy as np
@@ -188,14 +189,30 @@ def _print_results(label: str, res: dict):
 # Main — run for sequential_groups (all cases) and Cal-Val (70/30 split) parameter sets
 # =============================================================================
 
+def _parse_args():
+    parser = argparse.ArgumentParser(description="Compute model uncertainty metrics.")
+    parser.add_argument(
+        "--output-dir",
+        default=str(ROOT / "outputs"),
+        help="Directory containing checkpoints and split files (default: outputs/).",
+    )
+    parser.add_argument(
+        "--proc-subdir",
+        default=None,
+        help="Subdirectory under inputs/processed/ used for precomputed data (e.g. no_outliers).",
+    )
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
-    CHECKPOINT_DIR = ROOT / "outputs" / "no_outliers"
+    args = _parse_args()
+    CHECKPOINT_DIR = Path(args.output_dir)
 
     sequential_groups_path = CHECKPOINT_DIR / "sequential_groups_checkpoints" / "all.json"
     calval_path = CHECKPOINT_DIR / "calval_checkpoints" / "all.json"
 
     print("Loading precomputed data …")
-    data = precompute_data()
+    data = precompute_data(repo_root=ROOT, proc_subdir=args.proc_subdir)
 
     # ── sequential_groups params (all cases) ───────────────────────────────
     with open(sequential_groups_path) as f:
