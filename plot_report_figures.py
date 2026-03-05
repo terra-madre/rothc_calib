@@ -1,7 +1,7 @@
 """
 plot_report_figures.py
 ----------------------
-Generates five supplementary report figures and saves them to report/.
+Generates five supplementary report figures and saves them to report_fullset/.
 
   fig3_calval_diagram.png        – Cal-val procedure flowchart
   fig4_sequential_flow.png       – Sequential calibration sub-run chain
@@ -24,7 +24,7 @@ from matplotlib.patches import FancyBboxPatch
 from pathlib import Path
 
 ROOT    = Path(__file__).parent.parent
-OUTDIR  = ROOT / "report"
+OUTDIR  = ROOT / "report_fullset"
 sys.path.insert(0, str(Path(__file__).parent))
 
 PALETTE = {
@@ -42,6 +42,15 @@ PALETTE = {
     "orange":       "#D97706",
     "border":       "#374151",
 }
+
+
+def resolve_path(*candidates):
+    """Return the first existing path from candidates, else raise FileNotFoundError."""
+    for p in candidates:
+        if p.exists():
+            return p
+    cand_str = "\n  - ".join(str(p) for p in candidates)
+    raise FileNotFoundError(f"None of these paths exist:\n  - {cand_str}")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -85,93 +94,86 @@ def label(ax, x, y, text, fontsize=7.5, color=None, ha="center"):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def fig3_calval_diagram():
-    fig, ax = plt.subplots(figsize=(8.0, 11.5))
-    ax.set_xlim(-1.0, 8.5); ax.set_ylim(-0.5, 10.1)
+    fig, ax = plt.subplots(figsize=(12.0, 8.2))
+    ax.set_xlim(0.0, 12.0); ax.set_ylim(0.0, 8.6)
     ax.axis("off")
     ax.set_facecolor("white"); fig.patch.set_facecolor("white")
 
-    # ── Row 1: full dataset ────────────────────────────────────────────────
-    box(ax, 4, 9.4, "Full dataset\n70 paired cases",
-        w=2.8, h=0.55, fc=PALETTE["blue_light"], bold=True)
+    # Top row
+    box(ax, 6.0, 8.05, "Full dataset\n70 paired cases",
+        w=3.0, h=0.58, fc=PALETTE["blue_light"], bold=True)
+    arrow(ax, 6.0, 7.76, 6.0, 7.33)
+    box(ax, 6.0, 7.04, "Validation design\nTwo complementary strategies",
+        w=3.6, h=0.56, fc=PALETTE["grey_light"], bold=True)
 
-    arrow(ax, 4, 9.12, 4, 8.67)
+    # Branch arrows
+    arrow(ax, 5.25, 6.78, 3.1, 6.38)
+    arrow(ax, 6.75, 6.78, 8.9, 6.38)
 
-    # ── Row 2: split ───────────────────────────────────────────────────────
-    box(ax, 4, 8.38, "Stratified 70/30 split\nby calibration super-group  |  seed = 42",
-        w=4.6, h=0.55, fc=PALETTE["grey_light"])
+    # Left branch: hold-out
+    box(ax, 3.0, 6.13, "Stratified 70/30 split\nby super-group, seed = 42",
+        w=3.8, h=0.64, fc=PALETTE["green_light"], bold=True)
+    arrow(ax, 3.0, 5.81, 3.0, 5.38)
 
-    # Two branches
-    arrow(ax, 2.8, 8.11, 2.2, 7.63)   # left → train
-    arrow(ax, 5.2, 8.11, 5.8, 7.63)   # right → test
+    box(ax, 3.0, 5.10, "Train n = 47  |  Test n = 23",
+        w=3.4, h=0.52, fc=PALETTE["green_light"])
+    arrow(ax, 3.0, 4.84, 3.0, 4.39)
 
-    # ── Row 3: train / test ────────────────────────────────────────────────
-    box(ax, 2.0, 7.35, "Training set\nn = 47 cases",
-        w=2.2, h=0.52, fc=PALETTE["green_light"])
-    box(ax, 6.0, 7.35, "Test set\nn = 23 cases\n(held out)",
-        w=2.2, h=0.65, fc=PALETTE["red_light"])
+    box(ax, 3.0, 4.10,
+        "Sequential DE on train\n6 sub-runs, warm-starting",
+        w=3.6, h=0.64, fc=PALETTE["blue_light"])
+    arrow(ax, 3.0, 3.78, 3.0, 3.31)
 
-    arrow(ax, 2.0, 7.08, 2.0, 6.52)   # train → calibration
+    box(ax, 3.0, 3.01,
+        "Held-out test metrics\nRMSE = 0.592  |  R² = 0.572\nBias = +0.124",
+        w=3.8, h=0.76, fc=PALETTE["red_light"], fontsize=8.2)
+    arrow(ax, 3.0, 2.63, 3.0, 2.13)
 
-    # test set arrow skips down to validation sim (drawn later)
-    ax.annotate("", xy=(6.0, 4.42), xytext=(6.0, 7.02),
-                arrowprops=dict(arrowstyle="->", color=PALETTE["border"],
-                                lw=1.1, connectionstyle="arc3,rad=0"), zorder=2)
+    box(ax, 3.0, 1.78,
+        "Single-split criteria\nC1 PASS  |  C2 PASS  |  C3 PASS",
+        w=4.0, h=0.62, fc=PALETTE["orange_light"], fontsize=8.2)
 
-    # ── Row 4: calibration algorithm ──────────────────────────────────────
-    box(ax, 2.0, 6.18, "Sequential DE calibration\n6 sub-runs, warm-starting\n"
-        "Objective: RMSE(Δ SOC)",
-        w=3.2, h=0.72, fc=PALETTE["blue_light"])
+    # Right branch: k-fold
+    box(ax, 9.0, 6.13, "Stratified K-fold CV\nK = 5, seed = 42",
+        w=3.8, h=0.64, fc=PALETTE["purple_light"], bold=True)
+    arrow(ax, 9.0, 5.81, 9.0, 5.38)
 
-    arrow(ax, 2.0, 5.82, 2.0, 5.37)
+    box(ax, 9.0, 5.10, "Per fold: Train n = 56  |  Val n = 14",
+        w=4.0, h=0.52, fc=PALETTE["purple_light"])
+    arrow(ax, 9.0, 4.84, 9.0, 4.39)
 
-    # ── Row 5: calibrated params ───────────────────────────────────────────
-    box(ax, 2.0, 5.08, "Calibrated parameters\n(10 values)",
-        w=2.6, h=0.52, fc=PALETTE["purple_light"])
+    box(ax, 9.0, 4.10,
+        "Sequential DE per fold\nSame 6 sub-runs",
+        w=3.6, h=0.64, fc=PALETTE["blue_light"])
+    arrow(ax, 9.0, 3.78, 9.0, 3.30)
 
-    # Two branches from params
-    arrow(ax, 1.2, 4.82, 1.1, 4.45)   # → cal sim
-    arrow(ax, 2.8, 4.82, 5.05, 4.45)  # → val sim
+    box(ax, 9.0, 3.00,
+        "Fold aggregate metrics\nVal RMSE = 0.853 ± 0.301\nVal R² = 0.192 ± 1.113",
+        w=4.2, h=0.78, fc=PALETTE["blue_light"], fontsize=8.2)
+    arrow(ax, 9.0, 2.61, 9.0, 2.13)
 
-    # ── Row 6: simulations ─────────────────────────────────────────────────
-    box(ax, 1.0, 4.15, "Forward sim.\non training set",
-        w=2.1, h=0.52, fc=PALETTE["green_light"])
-    box(ax, 5.4, 4.15, "Forward sim.\non test set",
-        w=2.1, h=0.52, fc=PALETTE["red_light"])
+    box(ax, 9.0, 1.78,
+        "K-fold criteria\nC1 PASS 5/5 (PMU = 0.593)\nC2 PASS 3/5  |  C3 PASS 4/5",
+        w=4.4, h=0.72, fc=PALETTE["orange_light"], fontsize=8.0)
 
-    arrow(ax, 1.0, 3.88, 1.0, 3.40)
-    arrow(ax, 5.4, 3.88, 5.4, 3.40)
+    # Merge to final judgement
+    arrow(ax, 4.8, 1.47, 5.45, 1.02)
+    arrow(ax, 7.2, 1.47, 6.55, 1.02)
 
-    # ── Row 7: metrics ────────────────────────────────────────────────────
-    box(ax, 1.0, 3.08,
-        "Calibration metrics\nRMSE = 0.924\nR² = 0.812 | Bias = +0.051",
-        w=2.5, h=0.72, fc=PALETTE["green_light"], fontsize=8)
-    box(ax, 5.4, 3.08,
-        "Validation metrics\nRMSE = 0.592\nR² = 0.572 | Bias = +0.124",
-        w=2.5, h=0.72, fc=PALETTE["red_light"], fontsize=8)
+    box(ax, 6.0, 0.72,
+        "Overall model validity (pass/no-pass)\nPASS",
+        w=4.2, h=0.62, fc=PALETTE["green_light"], bold=True, fontsize=9)
 
-    # PI from cal metrics
-    arrow(ax, 1.0, 2.72, 1.0, 2.22)
+    label(ax, 9.0, 0.20,
+          "Note: k-fold shows fold sensitivity (one fold with R² < 0),\n"
+          "but acceptance criteria pass under majority-fold rule.",
+          fontsize=7.4)
 
-    # ── Row 8: PI ─────────────────────────────────────────────────────────
-    box(ax, 1.0, 1.92, "90% Prediction Interval\n± 1.645 × RMSE_cal = ± 1.52",
-        w=2.8, h=0.52, fc=PALETTE["grey_light"])
-
-    # Both PI and val metrics → acceptance
-    arrow(ax, 1.0, 1.66, 2.25, 0.97)
-    arrow(ax, 5.4, 2.72, 4.1, 0.97)
-
-    # ── Row 9: acceptance criteria ─────────────────────────────────────────
-    box(ax, 3.2, 0.62,
-        "Acceptance criteria\n"
-        "C1 -- bias <= PMU:  [N/A]\n"
-        "C2 -- >=90% PI coverage:  [PASS]\n"
-        "C3 -- R2 > 0 on test set:  [PASS]",
-        w=3.8, h=0.82, fc=PALETTE["orange_light"], bold=False, fontsize=8.5)
-
-    ax.set_title("Figure 3. Calibration–Validation Procedure",
-                 fontsize=11, fontweight="bold", pad=6)
+    ax.set_title("Validation Workflow — Hold-Out and K-Fold",
+                 fontsize=11.5, fontweight="bold", pad=6)
 
     fig.tight_layout()
+    OUTDIR.mkdir(parents=True, exist_ok=True)
     out = OUTDIR / "fig3_calval_diagram.png"
     fig.savefig(out, dpi=180, bbox_inches="tight", pad_inches=0.15)
     plt.close(fig)
@@ -240,7 +242,7 @@ def fig4_sequential_flow():
     box(ax, 4, 0.27, "Final calibrated parameter set  (10 values)",
         w=4.2, h=0.44, fc=PALETTE["blue_light"], bold=True, fontsize=9)
 
-    ax.set_title("Figure 4. Sequential Calibration Sub-Run Chain",
+    ax.set_title("Sequential Calibration Sub-Run Chain",
                  fontsize=11, fontweight="bold", pad=6)
     fig.tight_layout()
     out = OUTDIR / "fig4_sequential_flow.png"
@@ -256,8 +258,14 @@ def fig4_sequential_flow():
 def fig5_param_changes():
     cfg = pd.read_csv(ROOT / "inputs/optimization/param_config.csv")
 
-    sequential_groups_json = ROOT / "outputs/sequential_groups_checkpoints/all.json"
-    calval_json = ROOT / "outputs/calval_checkpoints/all.json"
+    sequential_groups_json = resolve_path(
+        ROOT / "outputs/sequential_groups_checkpoints/all.json",
+        ROOT / "outputs/fullset/sequential_groups_checkpoints/all.json",
+    )
+    calval_json = resolve_path(
+        ROOT / "outputs/calval_checkpoints/all.json",
+        ROOT / "outputs/fullset/calval_checkpoints/all.json",
+    )
     p2 = json.loads(sequential_groups_json.read_text())["params"]
     cv = json.loads(calval_json.read_text())["params"]
 
@@ -295,7 +303,7 @@ def fig5_param_changes():
     ax.set_yticks(y)
     ax.set_yticklabels(df["name"], fontsize=9, fontfamily="monospace")
     ax.set_xlabel("% change from default value", fontsize=9)
-    ax.set_title("Figure 5. Calibrated Parameter Values Relative to RothC Defaults",
+    ax.set_title("Calibrated Parameter Values Relative to RothC Defaults",
                  fontsize=10, fontweight="bold")
     ax.legend(fontsize=8.5, framealpha=0.9)
     ax.grid(axis="x", lw=0.5, alpha=0.4, zorder=0)
@@ -324,7 +332,11 @@ def load_predictions():
 
     data = precompute_data(repo_root=ROOT)
 
-    split_df = pd.read_csv(ROOT / "outputs/calval_split.csv")
+    split_path = resolve_path(
+        ROOT / "outputs/calval_split.csv",
+        ROOT / "outputs/fullset/calval_split.csv",
+    )
+    split_df = pd.read_csv(split_path)
     test_cases  = set(split_df[split_df["split"] == "test"]["case"])
     train_cases = set(split_df[split_df["split"] == "train"]["case"])
 
@@ -342,7 +354,11 @@ def load_predictions():
         comp["residual"] = comp["pred"] - comp["obs"]
         return comp
 
-    df_cv = run(ROOT / "outputs/calval_checkpoints/all.json")
+    calval_ckpt = resolve_path(
+        ROOT / "outputs/calval_checkpoints/all.json",
+        ROOT / "outputs/fullset/calval_checkpoints/all.json",
+    )
+    df_cv = run(calval_ckpt)
     df_cv["set"] = df_cv["case"].apply(
         lambda c: "test" if c in test_cases else "train"
     )
@@ -388,7 +404,7 @@ def fig6_residual_histogram(df_cv):
         ax.spines[["top", "right"]].set_visible(False)
         ax.grid(axis="y", lw=0.4, alpha=0.4)
 
-    fig.suptitle("Figure 6. Model Residual Distributions — Calibration vs Validation",
+    fig.suptitle("Model Residual Distributions — Calibration vs Validation",
                  fontsize=10.5, fontweight="bold", y=1.01)
     fig.tight_layout()
     out = OUTDIR / "fig6_residual_histogram.png"
@@ -470,7 +486,7 @@ def fig7_group_errors(df_cv):
         ax.spines[["top", "right"]].set_visible(False)
         ax.legend(fontsize=8, framealpha=0.9)
 
-    fig.suptitle("Figure 7. Per-Group Model Performance — Cal-Val Parameter Set",
+    fig.suptitle("Per-Group Model Performance — Cal-Val Parameter Set",
                  fontsize=10.5, fontweight="bold", y=1.01)
     fig.tight_layout()
     out = OUTDIR / "fig7_group_errors.png"
@@ -505,4 +521,4 @@ if __name__ == "__main__":
     print("Generating fig7 (group errors)...")
     fig7_group_errors(df_cv)
 
-    print("\nAll figures saved to report/")
+    print("\nAll figures saved to report_fullset/")
