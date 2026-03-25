@@ -41,7 +41,7 @@ import calc_soc_deltas as step6
 # =============================================================================
 
 def calc_model_uncertainty(params: dict, data: dict = None,
-                           case_subset: list = None, ci_pct: float = 0.70) -> dict:
+                           case_subset: list = None, ci_pct: float = 0.6667) -> dict:
     """Compute Model Error (ME) and Model Uncertainty Deduction (MUD).
 
     Parameters
@@ -60,12 +60,12 @@ def calc_model_uncertainty(params: dict, data: dict = None,
     dict with keys:
         n          – number of cases
         me         – model error: SD of (pred − obs) residuals  [t C ha⁻¹ yr⁻¹]
-        mud        – model uncertainty deduction                 [dimensionless fraction]
+        mud_rel    – model uncertainty deduction (relative): CV × t          [dimensionless]
+        mud_abs    – model uncertainty deduction (absolute): me × t          [t C ha⁻¹ yr⁻¹]
         t_value    – Student's t value used in MUD
         df_t       – degrees of freedom for t (= n − 1)
         rmse       – RMSE (for reference)
         bias       – mean(pred − obs)
-        sd_pred    – SD of predictions
         mean_pred  – mean of predictions
         cv_pred    – coefficient of variation of predictions (SD / mean)
         comparison – DataFrame with per-case obs, pred, residual
@@ -145,7 +145,8 @@ def calc_model_uncertainty(params: dict, data: dict = None,
     # sd_pred   = float(np.std(comparison['pred'], ddof=1))
     mean_pred = float(np.mean(comparison['pred']))
     cv_pred   = me / mean_pred if mean_pred != 0 else float('nan')
-    mud       = cv_pred * t_value
+    mud_rel   = cv_pred * t_value
+    mud_abs   = me * t_value
 
     # Other reference metrics
     residuals = comparison['residual'].values
@@ -155,7 +156,8 @@ def calc_model_uncertainty(params: dict, data: dict = None,
     return {
         'n':         n,
         'me':        me,
-        'mud':       mud,
+        'mud_rel':   mud_rel,
+        'mud_abs':   mud_abs,
         't_value':   t_value,
         'df_t':      df_t,
         'rmse':      rmse,
@@ -176,8 +178,9 @@ def _print_results(label: str, res: dict):
     print(f"  {label}  (n = {res['n']} cases)")
     print(f"{'='*60}")
     print(f"  Model Error (ME)          : {res['me']:+.4f} t C ha⁻¹ yr⁻¹")
-    print(f"  Model Uncertainty Deduct. : {res['mud']:+.4f}  (dimensionless)")
-    print(f"    = CV({res['cv_pred']:.4f}) × t({res['t_value']:.4f}, df={res['df_t']})")
+    print(f"  MUD (relative)            : {res['mud_rel']:+.4f}  (dimensionless)")
+    print(f"  MUD (absolute)            : {res['mud_abs']:+.4f} t C ha⁻¹ yr⁻¹")
+    print(f"    = CV({res['cv_pred']:.4f}) × t({res['t_value']:.4f}, df={res['df_t']})")  # mud_rel; mud_abs = ME × t
     print(f"  --- reference metrics ---")
     print(f"  RMSE                      : {res['rmse']:.4f} t C ha⁻¹ yr⁻¹")
     print(f"  Bias (mean pred − obs)    : {res['bias']:+.4f} t C ha⁻¹ yr⁻¹")
@@ -193,8 +196,8 @@ def _parse_args():
     parser = argparse.ArgumentParser(description="Compute model uncertainty metrics.")
     parser.add_argument(
         "--output-dir",
-        default=str(ROOT / "outputs"),
-        help="Directory containing checkpoints and split files (default: outputs/).",
+        default=str(ROOT / "outputs" / "fullset"),
+        help="Directory containing checkpoints and split files (default: outputs/fullset).",
     )
     parser.add_argument(
         "--proc-subdir",
@@ -214,28 +217,28 @@ if __name__ == "__main__":
     print("Loading precomputed data …")
     data = precompute_data(repo_root=ROOT, proc_subdir=args.proc_subdir)
 
-    # ── sequential_groups params (all cases) ───────────────────────────────
-    with open(sequential_groups_path) as f:
-        sequential_groups_params = json.load(f)['params']
+    # # ── sequential_groups params (all cases) ───────────────────────────────
+    # with open(sequential_groups_path) as f:
+    #     sequential_groups_params = json.load(f)['params']
 
-    res_sequential_groups = calc_model_uncertainty(sequential_groups_params, data=data)
-    _print_results("Sequential groups — calibrated on all cases", res_sequential_groups)
+    # res_sequential_groups = calc_model_uncertainty(sequential_groups_params, data=data)
+    # _print_results("Sequential groups — calibrated on all cases", res_sequential_groups)
 
     # ── Cal-Val params; evaluate on all cases ──────────────
     with open(calval_path) as f:
         calval_params = json.load(f)['params']
 
-    res_calval_all = calc_model_uncertainty(calval_params, data=data)
-    _print_results("Cal-Val params — evaluated on all cases", res_calval_all)
+    # res_calval_all = calc_model_uncertainty(calval_params, data=data)
+    # _print_results("Cal-Val params — evaluated on all cases", res_calval_all)
 
     # ── Cal-Val params, training set only ──────────────────────────
     splits_df = pd.read_csv(CHECKPOINT_DIR / "calval_split.csv")
     train_cases = splits_df.loc[splits_df['split'] == 'train', 'case'].tolist()
     test_cases  = splits_df.loc[splits_df['split'] == 'test',  'case'].tolist()
 
-    res_calval_train = calc_model_uncertainty(calval_params, data=data,
-                                              case_subset=train_cases)
-    _print_results("Cal-Val params — calibration set", res_calval_train)
+    # res_calval_train = calc_model_uncertainty(calval_params, data=data,
+    #                                           case_subset=train_cases)
+    # _print_results("Cal-Val params — calibration set", res_calval_train)
 
     res_calval_test = calc_model_uncertainty(calval_params, data=data,
                                              case_subset=test_cases)
